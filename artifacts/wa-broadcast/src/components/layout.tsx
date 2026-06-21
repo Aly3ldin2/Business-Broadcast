@@ -22,7 +22,7 @@ function SiteLogo() {
           <Radio className="h-4 w-4 text-primary-foreground" />
         </div>
         <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors leading-tight">
-          Broadcast<br />Sender
+          WhatsApp<br />Broadcast
         </span>
       </div>
     </Link>
