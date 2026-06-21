@@ -24,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Send, Loader2, CloudDownload, CloudUpload,
   CheckCircle2, XCircle, ImageIcon, Video,
-  AlertTriangle, Trash2, GripVertical, Link2, Upload,
+  AlertTriangle, Trash2, GripVertical, Link2, Upload, Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -282,22 +282,63 @@ export default function Campaign() {
               أرقام الهاتف
             </CardTitle>
             {settings?.hasGithubToken && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="h-7 text-xs"
-                  onClick={() => setIsLoadListOpen(true)}
-                  disabled={!gistData?.lists?.length}>
-                  <CloudDownload className="h-3 w-3 mr-1" />تحميل قائمة
-                </Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs"
-                  onClick={() => setIsSaveListOpen(true)}
-                  disabled={phones.length === 0}>
-                  <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" className="h-7 text-xs"
+                onClick={() => setIsSaveListOpen(true)}
+                disabled={phones.length === 0}>
+                <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
+              </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
+          {/* Inline list picker */}
+          {settings?.hasGithubToken && gistData?.lists && gistData.lists.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">اختار من قوائمك:</p>
+              <div className="flex flex-wrap gap-2">
+                {gistData.lists.map((list) => {
+                  const isLoaded = phonesText.trim() !== "" &&
+                    list.phones.every((p) => phonesText.includes(p));
+                  return (
+                    <button
+                      key={list.name}
+                      onClick={() => {
+                        if (phonesText.trim() && !isLoaded) {
+                          // Append phones not already present
+                          const existing = new Set(parsePhones());
+                          const toAdd = list.phones.filter((p) => !existing.has(p));
+                          setPhonesText((prev) =>
+                            prev.trimEnd() + (prev.trim() ? "\n" : "") + toAdd.join("\n")
+                          );
+                        } else if (!phonesText.trim()) {
+                          setPhonesText(list.phones.join("\n"));
+                        } else {
+                          // Already loaded — deselect (clear list phones)
+                          const listSet = new Set(list.phones);
+                          const remaining = parsePhones().filter((p) => !listSet.has(p));
+                          setPhonesText(remaining.join("\n"));
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                        isLoaded
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-foreground border-border hover:border-primary hover:text-primary"
+                      }`}
+                    >
+                      <Users className="h-3 w-3" />
+                      {list.name}
+                      <span className={`text-[10px] px-1 rounded-full ${
+                        isLoaded ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {list.phones.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <Textarea
             placeholder={"201012345678\n201123456789\n\nألصق الأرقام — رقم في كل سطر أو مفصولة بفاصلة"}
             value={phonesText}
