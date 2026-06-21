@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useSendCampaign,
@@ -25,6 +25,7 @@ import {
   Send, Loader2, CloudDownload, CloudUpload,
   CheckCircle2, XCircle, ImageIcon, Video,
   AlertTriangle, Trash2, GripVertical, Link2, Upload, Users,
+  Pencil, Check, X, PenLine,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -68,6 +69,41 @@ export default function Campaign() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSaveListOpen, setIsSaveListOpen] = useState(false);
   const [isLoadListOpen, setIsLoadListOpen] = useState(false);
+
+  // ── Signature ──────────────────────────────────────────────────
+  const [signature, setSignature] = useState(() =>
+    localStorage.getItem("wa_signature") ?? ""
+  );
+  const [signatureEnabled, setSignatureEnabled] = useState(() =>
+    localStorage.getItem("wa_signature_enabled") !== "false"
+  );
+  const [isEditingSignature, setIsEditingSignature] = useState(false);
+  const [sigDraft, setSigDraft] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("wa_signature", signature);
+  }, [signature]);
+
+  useEffect(() => {
+    localStorage.setItem("wa_signature_enabled", String(signatureEnabled));
+  }, [signatureEnabled]);
+
+  function startEditSignature() {
+    setSigDraft(signature);
+    setIsEditingSignature(true);
+  }
+  function saveSignature() {
+    setSignature(sigDraft);
+    setIsEditingSignature(false);
+  }
+  function cancelEditSignature() {
+    setIsEditingSignature(false);
+  }
+
+  const fullMessage =
+    signatureEnabled && signature.trim()
+      ? message + "\n\n" + signature.trim()
+      : message;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingAddType = useRef<"image" | "video">("image");
@@ -200,7 +236,7 @@ export default function Campaign() {
     setSendResults(null);
     try {
       const result = await sendMutation.mutateAsync({
-        data: { phones, message, mediaItems: readyMedia },
+        data: { phones, message: fullMessage, mediaItems: readyMedia },
       });
       setSendResults(result.results);
       toast({ title: `تم الإرسال: ${result.sent} نجح، ${result.failed} فشل` });
@@ -362,14 +398,98 @@ export default function Campaign() {
             <StepBadge n={2} />الرسالة
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-0">
           <Textarea
             placeholder="اكتب نص الرسالة هنا..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={5}
-            className="resize-none"
+            className="resize-none rounded-b-none border-b-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
+
+          {/* Signature section */}
+          <div className={`border rounded-b-md transition-colors ${
+            signatureEnabled ? "bg-muted/40 border-border" : "bg-background border-border opacity-60"
+          }`}>
+            {/* Signature header bar */}
+            <div className="flex items-center justify-between px-3 py-1.5 border-b">
+              <div className="flex items-center gap-2">
+                <PenLine className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground font-medium">التوقيع</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {!isEditingSignature && (
+                  <button
+                    onClick={startEditSignature}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    تعديل
+                  </button>
+                )}
+                {isEditingSignature && (
+                  <>
+                    <button
+                      onClick={saveSignature}
+                      className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 px-1.5 py-0.5 rounded hover:bg-green-50 transition-colors"
+                    >
+                      <Check className="h-3 w-3" />
+                      حفظ
+                    </button>
+                    <button
+                      onClick={cancelEditSignature}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                      إلغاء
+                    </button>
+                  </>
+                )}
+                {/* Toggle */}
+                <button
+                  onClick={() => setSignatureEnabled((v) => !v)}
+                  className={`relative ml-1 inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${
+                    signatureEnabled ? "bg-primary" : "bg-muted-foreground/30"
+                  }`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
+                    signatureEnabled ? "translate-x-3.5" : "translate-x-0.5"
+                  }`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Signature body */}
+            <div className="px-3 py-2">
+              {isEditingSignature ? (
+                <Textarea
+                  value={sigDraft}
+                  onChange={(e) => setSigDraft(e.target.value)}
+                  placeholder="اكتب توقيعك هنا...&#10;مثال: أحمد محمد | 01012345678 | شركة النجاح العقارية"
+                  rows={3}
+                  className="resize-none text-xs border-dashed focus-visible:ring-1"
+                  autoFocus
+                />
+              ) : signature.trim() ? (
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {signature}
+                </p>
+              ) : (
+                <button
+                  onClick={startEditSignature}
+                  className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors italic"
+                >
+                  اضغط "تعديل" لإضافة توقيعك...
+                </button>
+              )}
+            </div>
+          </div>
+
+          {signatureEnabled && signature.trim() && (
+            <p className="text-xs text-muted-foreground pt-2">
+              سيُضاف التوقيع تلقائياً لكل رسالة
+            </p>
+          )}
         </CardContent>
       </Card>
 
