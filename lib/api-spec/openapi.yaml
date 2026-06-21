@@ -1,22 +1,32 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: WhatsApp Broadcast Manager API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: contacts
+    description: Contact management
+  - name: lists
+    description: Broadcast list management
+  - name: templates
+    description: WhatsApp message templates
+  - name: broadcasts
+    description: Broadcast campaigns
+  - name: settings
+    description: API settings and credentials
+  - name: stats
+    description: Dashboard statistics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +34,735 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /contacts:
+    get:
+      operationId: listContacts
+      tags: [contacts]
+      summary: List all contacts
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: listId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Create a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    get:
+      operationId: getContact
+      tags: [contacts]
+      summary: Get a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    patch:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      summary: Delete a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /contacts/import:
+    post:
+      operationId: importContacts
+      tags: [contacts]
+      summary: Import contacts from CSV data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactImport"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+
+  /lists:
+    get:
+      operationId: listContactLists
+      tags: [lists]
+      summary: Get all contact lists
+      responses:
+        "200":
+          description: Lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContactList"
+    post:
+      operationId: createContactList
+      tags: [lists]
+      summary: Create a contact list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactListInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactList"
+
+  /lists/{id}:
+    get:
+      operationId: getContactList
+      tags: [lists]
+      summary: Get a contact list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactList"
+    delete:
+      operationId: deleteContactList
+      tags: [lists]
+      summary: Delete a contact list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /lists/{id}/members:
+    post:
+      operationId: addContactsToList
+      tags: [lists]
+      summary: Add contacts to a list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListMemberInput"
+      responses:
+        "200":
+          description: Updated list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactList"
+    delete:
+      operationId: removeContactFromList
+      tags: [lists]
+      summary: Remove contact from list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListMemberInput"
+      responses:
+        "204":
+          description: Removed
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: List message templates
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+    post:
+      operationId: createTemplate
+      tags: [templates]
+      summary: Create a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+
+  /templates/{id}:
+    delete:
+      operationId: deleteTemplate
+      tags: [templates]
+      summary: Delete a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /broadcasts:
+    get:
+      operationId: listBroadcasts
+      tags: [broadcasts]
+      summary: List all broadcasts
+      responses:
+        "200":
+          description: Broadcasts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Broadcast"
+    post:
+      operationId: createBroadcast
+      tags: [broadcasts]
+      summary: Create a broadcast campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BroadcastInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Broadcast"
+
+  /broadcasts/{id}:
+    get:
+      operationId: getBroadcast
+      tags: [broadcasts]
+      summary: Get a broadcast with message stats
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Broadcast details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastDetail"
+    delete:
+      operationId: deleteBroadcast
+      tags: [broadcasts]
+      summary: Delete a broadcast
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /broadcasts/{id}/send:
+    post:
+      operationId: sendBroadcast
+      tags: [broadcasts]
+      summary: Send a broadcast campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Send result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendResult"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get API settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    put:
+      operationId: saveSettings
+      tags: [settings]
+      summary: Save API settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsInput"
+      responses:
+        "200":
+          description: Saved settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
+  /settings/test:
+    post:
+      operationId: testConnection
+      tags: [settings]
+      summary: Test WhatsApp API connection
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionTest"
+
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Contact:
+      type: object
+      required: [id, name, phone, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        tags:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ContactInput:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        tags:
+          type: string
+        notes:
+          type: string
+
+    ContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        tags:
+          type: string
+        notes:
+          type: string
+
+    ContactImport:
+      type: object
+      required: [contacts]
+      properties:
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactInput"
+        listId:
+          type: ["integer", "null"]
+
+    ImportResult:
+      type: object
+      required: [imported, skipped, total]
+      properties:
+        imported:
+          type: integer
+        skipped:
+          type: integer
+        total:
+          type: integer
+
+    ContactList:
+      type: object
+      required: [id, name, contactCount, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        contactCount:
+          type: integer
+        createdAt:
+          type: string
+
+    ContactListInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    ListMemberInput:
+      type: object
+      required: [contactIds]
+      properties:
+        contactIds:
+          type: array
+          items:
+            type: integer
+
+    Template:
+      type: object
+      required: [id, name, language, category, body, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        language:
+          type: string
+        category:
+          type: string
+        body:
+          type: string
+        headerText:
+          type: ["string", "null"]
+        footerText:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        createdAt:
+          type: string
+
+    TemplateInput:
+      type: object
+      required: [name, language, category, body]
+      properties:
+        name:
+          type: string
+        language:
+          type: string
+        category:
+          type: string
+          enum: [MARKETING, UTILITY, AUTHENTICATION]
+        body:
+          type: string
+        headerText:
+          type: string
+        footerText:
+          type: string
+
+    Broadcast:
+      type: object
+      required: [id, name, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        templateId:
+          type: ["integer", "null"]
+        templateName:
+          type: ["string", "null"]
+        listId:
+          type: ["integer", "null"]
+        listName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, sending, sent, failed]
+        totalCount:
+          type: integer
+        sentCount:
+          type: integer
+        deliveredCount:
+          type: integer
+        readCount:
+          type: integer
+        failedCount:
+          type: integer
+        createdAt:
+          type: string
+        sentAt:
+          type: ["string", "null"]
+
+    BroadcastInput:
+      type: object
+      required: [name, templateId, listId]
+      properties:
+        name:
+          type: string
+        templateId:
+          type: integer
+        listId:
+          type: integer
+
+    BroadcastDetail:
+      type: object
+      required: [id, name, status, messages, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        templateId:
+          type: ["integer", "null"]
+        templateName:
+          type: ["string", "null"]
+        listId:
+          type: ["integer", "null"]
+        listName:
+          type: ["string", "null"]
+        status:
+          type: string
+        totalCount:
+          type: integer
+        sentCount:
+          type: integer
+        deliveredCount:
+          type: integer
+        readCount:
+          type: integer
+        failedCount:
+          type: integer
+        createdAt:
+          type: string
+        sentAt:
+          type: ["string", "null"]
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/BroadcastMessage"
+
+    BroadcastMessage:
+      type: object
+      required: [id, contactName, contactPhone, status]
+      properties:
+        id:
+          type: integer
+        contactName:
+          type: string
+        contactPhone:
+          type: string
+        status:
+          type: string
+          enum: [pending, sent, delivered, read, failed]
+        errorMessage:
+          type: ["string", "null"]
+        sentAt:
+          type: ["string", "null"]
+        deliveredAt:
+          type: ["string", "null"]
+        readAt:
+          type: ["string", "null"]
+
+    SendResult:
+      type: object
+      required: [success, sent, failed, total]
+      properties:
+        success:
+          type: boolean
+        sent:
+          type: integer
+        failed:
+          type: integer
+        total:
+          type: integer
+        message:
+          type: string
+
+    Settings:
+      type: object
+      required: [isConfigured]
+      properties:
+        isConfigured:
+          type: boolean
+        phoneNumberId:
+          type: ["string", "null"]
+        accessToken:
+          type: ["string", "null"]
+        businessAccountId:
+          type: ["string", "null"]
+
+    SettingsInput:
+      type: object
+      required: [phoneNumberId, accessToken]
+      properties:
+        phoneNumberId:
+          type: string
+        accessToken:
+          type: string
+        businessAccountId:
+          type: string
+
+    ConnectionTest:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        phoneNumber:
+          type: ["string", "null"]
+
+    DashboardStats:
+      type: object
+      required: [totalContacts, totalLists, totalBroadcasts, totalMessagesSent, deliveryRate, readRate, recentBroadcasts]
+      properties:
+        totalContacts:
+          type: integer
+        totalLists:
+          type: integer
+        totalBroadcasts:
+          type: integer
+        totalMessagesSent:
+          type: integer
+        deliveryRate:
+          type: number
+        readRate:
+          type: number
+        recentBroadcasts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Broadcast"
