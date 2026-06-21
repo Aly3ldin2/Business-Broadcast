@@ -19,21 +19,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Send,
   Loader2,
   CloudDownload,
   CloudUpload,
-  Plus,
-  Trash2,
   CheckCircle2,
   XCircle,
   ImageIcon,
@@ -57,16 +48,13 @@ export default function Campaign() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Phones input
   const [phonesText, setPhonesText] = useState("");
-  const [listName, setListName] = useState("قائمة عملائي");
+  const [listName, setListName] = useState("");
 
-  // Message
   const [message, setMessage] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaType, setMediaType] = useState<"image" | "video" | "none">("none");
 
-  // Results
   const [sendResults, setSendResults] = useState<SendResult[] | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -122,35 +110,28 @@ export default function Campaign() {
 
   async function handleSaveList() {
     const existingLists: PhoneList[] = gistData?.lists ?? [];
-    const idx = existingLists.findIndex((l) => l.name === listName);
+    const name = listName.trim();
+    if (!name) return;
+    const idx = existingLists.findIndex((l) => l.name === name);
     let newLists: PhoneList[];
     if (idx >= 0) {
-      newLists = existingLists.map((l, i) =>
-        i === idx ? { ...l, phones } : l
-      );
+      newLists = existingLists.map((l, i) => (i === idx ? { ...l, phones } : l));
     } else {
-      newLists = [...existingLists, { name: listName, phones }];
+      newLists = [...existingLists, { name, phones }];
     }
     try {
       await saveMutation.mutateAsync({ data: { lists: newLists } });
       queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
       setIsSaveListOpen(false);
-      toast({ title: `تم حفظ القائمة "${listName}" على GitHub Gist` });
+      setListName("");
+      toast({ title: `تم حفظ القائمة "${name}" — ${phones.length} رقم` });
     } catch (e: any) {
       toast({ title: "فشل الحفظ", description: e?.message, variant: "destructive" });
     }
   }
 
-  async function handleDeleteList(name: string) {
-    const newLists = (gistData?.lists ?? []).filter((l) => l.name !== name);
-    await saveMutation.mutateAsync({ data: { lists: newLists } });
-    queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
-    toast({ title: `تم حذف القائمة "${name}"` });
-  }
-
   function loadList(list: PhoneList) {
     setPhonesText(list.phones.join("\n"));
-    setListName(list.name);
     setIsLoadListOpen(false);
     toast({ title: `تم تحميل "${list.name}" — ${list.phones.length} رقم` });
   }
@@ -161,9 +142,9 @@ export default function Campaign() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">إرسال عرض عقاري</h1>
+        <h1 className="text-3xl font-bold tracking-tight">إرسال رسالة</h1>
         <p className="text-muted-foreground mt-1">
-          ألصق أرقام العملاء، اكتب تفاصيل العرض، واضغط إرسال
+          ألصق الأرقام، اكتب الرسالة، واضغط إرسال
         </p>
       </div>
 
@@ -179,7 +160,7 @@ export default function Campaign() {
         </div>
       )}
 
-      {/* Step 1: Phone Numbers */}
+      {/* Step 1: Phones */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -187,47 +168,44 @@ export default function Campaign() {
               <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
                 1
               </span>
-              أرقام العملاء
+              أرقام الهاتف
             </CardTitle>
-            <div className="flex gap-2">
-              {settings?.hasGithubToken && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsLoadListOpen(true)}
-                  >
-                    <CloudDownload className="h-3.5 w-3.5 mr-1" />
-                    تحميل قائمة
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsSaveListOpen(true)}
-                    disabled={phones.length === 0}
-                  >
-                    <CloudUpload className="h-3.5 w-3.5 mr-1" />
-                    حفظ القائمة
-                  </Button>
-                </>
-              )}
-            </div>
+            {settings?.hasGithubToken && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsLoadListOpen(true)}
+                  disabled={!gistData?.lists?.length}
+                >
+                  <CloudDownload className="h-3.5 w-3.5 mr-1" />
+                  تحميل قائمة
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSaveListOpen(true)}
+                  disabled={phones.length === 0}
+                >
+                  <CloudUpload className="h-3.5 w-3.5 mr-1" />
+                  حفظ كقائمة
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <Textarea
-            placeholder={`201012345678\n201123456789\n201234567890\n\nالصق الأرقام هنا — رقم في كل سطر أو مفصولة بفاصلة`}
+            placeholder={`201012345678\n201123456789\n201234567890\n\nألصق الأرقام هنا — رقم في كل سطر أو مفصولة بفاصلة`}
             value={phonesText}
             onChange={(e) => setPhonesText(e.target.value)}
-            rows={7}
+            rows={6}
             className="font-mono text-sm resize-none"
             dir="ltr"
           />
           {phones.length > 0 && (
             <p className="text-sm text-muted-foreground">
-              تم اكتشاف{" "}
-              <strong className="text-foreground">{phones.length}</strong> رقم
-              صالح
+              <strong className="text-foreground">{phones.length}</strong> رقم صالح
             </p>
           )}
         </CardContent>
@@ -240,14 +218,14 @@ export default function Campaign() {
             <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
               2
             </span>
-            تفاصيل العرض
+            الرسالة
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <Label>نص الرسالة *</Label>
             <Textarea
-              placeholder="مثال: عرض فيلا 5 غرف في التجمع الخامس، 450 متر، موقف سيارتين، تشطيب سوبر لوكس. السعر 8.5 مليون. للتواصل: 01012345678"
+              placeholder="اكتب نص الرسالة هنا..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={5}
@@ -255,55 +233,39 @@ export default function Campaign() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => setMediaType("none")}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors text-sm font-medium ${
-                mediaType === "none"
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border text-muted-foreground hover:border-muted-foreground"
-              }`}
-            >
-              <span className="text-lg">✉️</span>
-              نص فقط
-            </button>
-            <button
-              type="button"
-              onClick={() => setMediaType("image")}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors text-sm font-medium ${
-                mediaType === "image"
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border text-muted-foreground hover:border-muted-foreground"
-              }`}
-            >
-              <ImageIcon className="h-5 w-5" />
-              صورة
-            </button>
-            <button
-              type="button"
-              onClick={() => setMediaType("video")}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors text-sm font-medium ${
-                mediaType === "video"
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border text-muted-foreground hover:border-muted-foreground"
-              }`}
-            >
-              <Video className="h-5 w-5" />
-              فيديو
-            </button>
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">
+              نوع المحتوى (اختياري)
+            </Label>
+            <div className="grid grid-cols-3 gap-3">
+              {(["none", "image", "video"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setMediaType(type)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors text-sm font-medium ${
+                    mediaType === type
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground hover:border-muted-foreground"
+                  }`}
+                >
+                  {type === "none" && <span className="text-lg">✉️</span>}
+                  {type === "image" && <ImageIcon className="h-5 w-5" />}
+                  {type === "video" && <Video className="h-5 w-5" />}
+                  {type === "none" ? "نص فقط" : type === "image" ? "صورة" : "فيديو"}
+                </button>
+              ))}
+            </div>
           </div>
 
           {mediaType !== "none" && (
             <div>
-              <Label>
-                رابط {mediaType === "image" ? "الصورة" : "الفيديو"} *
-              </Label>
+              <Label>رابط {mediaType === "image" ? "الصورة" : "الفيديو"} *</Label>
               <Input
                 placeholder={
                   mediaType === "image"
-                    ? "https://example.com/property-photo.jpg"
-                    : "https://example.com/property-tour.mp4"
+                    ? "https://example.com/image.jpg"
+                    : "https://example.com/video.mp4"
                 }
                 value={mediaUrl}
                 onChange={(e) => setMediaUrl(e.target.value)}
@@ -311,31 +273,27 @@ export default function Campaign() {
                 dir="ltr"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                الرابط لازم يكون متاح للعموم (public URL). ارفع الصورة/الفيديو
-                على Google Drive أو Dropbox أو أي hosting وخد الرابط المباشر.
+                الرابط لازم يكون متاح للعموم (public URL).
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Send Button */}
+      {/* Send */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {phones.length > 0 && message && (
-            <span>
-              جاهز للإرسال لـ <strong>{phones.length}</strong> عميل
-            </span>
+            <>
+              جاهز للإرسال لـ <strong>{phones.length}</strong> رقم
+            </>
           )}
-        </div>
+        </span>
         <Button
           size="lg"
           className="px-8"
           disabled={
-            phones.length === 0 ||
-            !message ||
-            isSending ||
-            !settings?.isConfigured
+            phones.length === 0 || !message || isSending || !settings?.isConfigured
           }
           onClick={() => setIsConfirmOpen(true)}
         >
@@ -370,12 +328,9 @@ export default function Campaign() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="max-h-72 overflow-y-auto divide-y">
+            <div className="max-h-64 overflow-y-auto divide-y">
               {sendResults.map((r, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm"
-                >
+                <div key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                   {r.success ? (
                     <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                   ) : (
@@ -394,7 +349,7 @@ export default function Campaign() {
         </Card>
       )}
 
-      {/* Confirm Dialog */}
+      {/* Confirm Send */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -402,22 +357,20 @@ export default function Campaign() {
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <p>
-              هيتم إرسال الرسالة لـ{" "}
-              <strong>{phones.length} رقم</strong>.
+              سيتم إرسال الرسالة لـ <strong>{phones.length} رقم</strong>.
             </p>
-            <div className="bg-muted/50 rounded-md p-3 font-mono text-xs whitespace-pre-wrap break-all">
+            <div className="bg-muted/50 rounded-md p-3 text-xs whitespace-pre-wrap break-words">
               {message.slice(0, 200)}
               {message.length > 200 ? "..." : ""}
             </div>
             {mediaType !== "none" && mediaUrl && (
               <p className="text-muted-foreground">
-                مع {mediaType === "image" ? "صورة" : "فيديو"} مرفق
+                + {mediaType === "image" ? "صورة" : "فيديو"} مرفق
               </p>
             )}
             <p className="text-amber-600 text-xs">
-              ملحوظة: واتساب Business API بيسمح بإرسال رسائل مجانية للعملاء
-              اللي تواصلوا معك خلال 24 ساعة. للرسائل التسويقية لعملاء جدد
-              محتاج template معتمد.
+              ملحوظة: واتساب Business API يتيح الرسائل المجانية للمستخدمين الذين
+              تواصلوا معك خلال 24 ساعة. للرسائل التسويقية تحتاج template معتمد.
             </p>
           </div>
           <DialogFooter>
@@ -432,11 +385,11 @@ export default function Campaign() {
         </DialogContent>
       </Dialog>
 
-      {/* Save List Dialog */}
+      {/* Save List */}
       <Dialog open={isSaveListOpen} onOpenChange={setIsSaveListOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>حفظ القائمة على GitHub Gist</DialogTitle>
+            <DialogTitle>حفظ كقائمة</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -444,11 +397,13 @@ export default function Campaign() {
               <Input
                 value={listName}
                 onChange={(e) => setListName(e.target.value)}
+                placeholder="مثال: عملاء يناير"
                 className="mt-1.5"
+                autoFocus
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              هيتم حفظ {phones.length} رقم على GitHub Gist الخاص بيك
+              سيتم حفظ {phones.length} رقم على GitHub Gist
             </p>
           </div>
           <DialogFooter>
@@ -457,7 +412,7 @@ export default function Campaign() {
             </Button>
             <Button
               onClick={handleSaveList}
-              disabled={!listName || saveMutation.isPending}
+              disabled={!listName.trim() || saveMutation.isPending}
             >
               {saveMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -470,43 +425,28 @@ export default function Campaign() {
         </DialogContent>
       </Dialog>
 
-      {/* Load List Dialog */}
+      {/* Load List */}
       <Dialog open={isLoadListOpen} onOpenChange={setIsLoadListOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تحميل قائمة من GitHub Gist</DialogTitle>
+            <DialogTitle>تحميل قائمة</DialogTitle>
           </DialogHeader>
-          {!gistData || gistData.lists.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">
-              مفيش قوائم محفوظة لحد دلوقتي.
-            </p>
+          {!gistData?.lists?.length ? (
+            <p className="text-sm text-muted-foreground py-4">لا توجد قوائم محفوظة.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-72 overflow-y-auto">
               {gistData.lists.map((list) => (
-                <div
+                <button
                   key={list.name}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  onClick={() => loadList(list)}
+                  className="w-full text-right flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div>
                     <p className="font-medium text-sm">{list.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {list.phones.length} رقم
-                    </p>
+                    <p className="text-xs text-muted-foreground">{list.phones.length} رقم</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => loadList(list)}>
-                      تحميل
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteList(list.name)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                  <CloudDownload className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </button>
               ))}
             </div>
           )}

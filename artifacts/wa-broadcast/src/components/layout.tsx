@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Menu } from "lucide-react";
+import { Send, Settings, Users, Menu } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 
@@ -9,7 +9,8 @@ interface LayoutProps {
 }
 
 const navigation = [
-  { name: "إرسال عرض", href: "/", icon: Send },
+  { name: "إرسال رسالة", href: "/", icon: Send },
+  { name: "قوائم الأرقام", href: "/lists", icon: Users },
   { name: "الإعدادات", href: "/settings", icon: Settings },
 ];
 
@@ -57,9 +58,7 @@ export function Layout({ children }: LayoutProps) {
             </SheetTrigger>
             <SheetContent side="left" className="w-56 p-0 bg-sidebar">
               <div className="flex h-14 shrink-0 items-center px-5 border-b">
-                <span className="text-base font-bold text-primary">
-                  WhatsApp Broadcast
-                </span>
+                <span className="text-base font-bold text-primary">WhatsApp Broadcast</span>
               </div>
               <NavLinks />
             </SheetContent>
@@ -79,7 +78,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <div className="p-4 border-t">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              مجاني ومفتوح المصدر. يعمل عبر WhatsApp Business Cloud API.
+              مجاني ومفتوح المصدر.
             </p>
           </div>
         </div>
