@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { settingsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { SaveSettingsBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -23,11 +24,14 @@ router.put("/", async (req, res) => {
     return res.status(400).json({ error: "Invalid body" });
   }
   const existing = await getOrCreateSettings();
-  const { sql, eq } = await import("drizzle-orm");
-  await db
-    .update(settingsTable)
-    .set(parsed.data)
-    .where(eq(settingsTable.id, existing.id));
+  const updateData: Record<string, string> = {};
+  if (parsed.data.phoneNumberId) updateData.phoneNumberId = parsed.data.phoneNumberId;
+  if (parsed.data.accessToken) updateData.accessToken = parsed.data.accessToken;
+  if (parsed.data.businessAccountId !== undefined) updateData.businessAccountId = parsed.data.businessAccountId ?? "";
+  if (parsed.data.githubToken) updateData.githubToken = parsed.data.githubToken;
+  if (parsed.data.gistId !== undefined) updateData.gistId = parsed.data.gistId ?? "";
+
+  await db.update(settingsTable).set(updateData).where(eq(settingsTable.id, existing.id));
   const updated = await getOrCreateSettings();
   return res.json(formatSettings(updated));
 });
@@ -37,7 +41,7 @@ router.post("/test", async (_req, res) => {
   if (!settings.phoneNumberId || !settings.accessToken) {
     return res.json({
       success: false,
-      message: "API credentials not configured. Please enter your Phone Number ID and Access Token first.",
+      message: "WhatsApp API credentials not configured yet.",
       phoneNumber: null,
     });
   }
@@ -45,11 +49,7 @@ router.post("/test", async (_req, res) => {
   try {
     const response = await fetch(
       `https://graph.facebook.com/v19.0/${settings.phoneNumberId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${settings.accessToken}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${settings.accessToken}` } }
     );
     const data = await response.json() as { display_phone_number?: string; error?: { message?: string } };
     if (response.ok && data.display_phone_number) {
@@ -61,24 +61,22 @@ router.post("/test", async (_req, res) => {
     }
     return res.json({
       success: false,
-      message: data.error?.message || "Connection failed. Check your credentials.",
+      message: data.error?.message ?? "Connection failed. Check your credentials.",
       phoneNumber: null,
     });
   } catch {
-    return res.json({
-      success: false,
-      message: "Network error. Could not reach WhatsApp API.",
-      phoneNumber: null,
-    });
+    return res.json({ success: false, message: "Network error. Could not reach WhatsApp API.", phoneNumber: null });
   }
 });
 
 function formatSettings(s: typeof settingsTable.$inferSelect) {
   return {
     isConfigured: !!(s.phoneNumberId && s.accessToken),
+    hasGithubToken: !!s.githubToken,
     phoneNumberId: s.phoneNumberId,
     accessToken: s.accessToken ? s.accessToken.slice(0, 8) + "..." : null,
     businessAccountId: s.businessAccountId,
+    gistId: s.gistId,
   };
 }
 

@@ -11,43 +11,64 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, XCircle, Loader2, ExternalLink } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  ExternalLink,
+  Github,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const SETUP_STEPS = [
+const WA_STEPS = [
   {
-    number: 1,
-    title: "Create a Meta Developer account",
-    description: "Go to developers.facebook.com and sign in with your Facebook account. Click \"Get Started\" to activate your developer account.",
+    n: 1,
+    title: "أنشئ حساب Meta Developer",
+    desc: 'اذهب لـ developers.facebook.com وسجل دخول. اضغط "Get Started".',
     link: "https://developers.facebook.com",
-    linkText: "Open Meta for Developers",
+    linkText: "افتح Meta for Developers",
   },
   {
-    number: 2,
-    title: "Create a new App",
-    description: "Click \"Create App\", select \"Business\" as the app type, give it a name, and click Create.",
+    n: 2,
+    title: "أنشئ App جديد",
+    desc: 'اضغط "Create App"، اختار نوع "Business"، اديله اسم، واضغط Create.',
   },
   {
-    number: 3,
-    title: "Add WhatsApp to your App",
-    description: "In the app dashboard, find \"Add products to your app\" and click Set Up next to WhatsApp.",
+    n: 3,
+    title: "أضف WhatsApp للـ App",
+    desc: 'في لوحة التحكم، دور على "Add products to your app" واضغط Set Up جنب WhatsApp.',
   },
   {
-    number: 4,
-    title: "Get your Phone Number ID",
-    description: "Go to WhatsApp > Getting Started in the left sidebar. You'll see a \"Phone Number ID\" — copy it and paste it below.",
+    n: 4,
+    title: "خد الـ Phone Number ID",
+    desc: 'اذهب لـ WhatsApp > Getting Started في القايمة الجانبية. هتلاقي "Phone Number ID" — انسخه وحطه تحت.',
   },
   {
-    number: 5,
-    title: "Get a permanent Access Token",
-    description: "Go to your Meta Business Manager > System Users > Create a system user with Admin role. Then click \"Generate New Token\", select your app, and add the whatsapp_business_messaging permission. Copy the token below.",
+    n: 5,
+    title: "أنشئ Access Token دائم",
+    desc: "اذهب لـ Meta Business Manager > System Users. أنشئ System User بصلاحية Admin، اضغط Generate New Token، اختار الـ App، أضف صلاحية whatsapp_business_messaging، وانسخ التوكن.",
     link: "https://business.facebook.com/settings/system-users",
-    linkText: "Open Business Manager",
+    linkText: "افتح Business Manager",
+  },
+];
+
+const GITHUB_STEPS = [
+  {
+    n: 1,
+    title: "أنشئ GitHub Personal Access Token",
+    desc: 'اذهب لـ GitHub Settings > Developer settings > Personal access tokens > Tokens (classic). اضغط "Generate new token".',
+    link: "https://github.com/settings/tokens/new",
+    linkText: "أنشئ Token على GitHub",
   },
   {
-    number: 6,
-    title: "Test your connection",
-    description: "Enter your Phone Number ID and Access Token below, save, then click Test Connection to verify everything is working.",
+    n: 2,
+    title: "اختار الصلاحيات",
+    desc: 'من الـ Scopes، اختار فقط "gist". ده كافي لحفظ وتحميل القوائم.',
+  },
+  {
+    n: 3,
+    title: "انسخ التوكن وحطه هنا",
+    desc: "انسخ التوكن وحطه في الخانة دي وحفظ.",
   },
 ];
 
@@ -58,112 +79,162 @@ export default function Settings() {
   const saveMutation = useSaveSettings();
   const testMutation = useTestConnection();
 
-  const [form, setForm] = useState({ phoneNumberId: "", accessToken: "", businessAccountId: "" });
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string; phoneNumber?: string | null } | null>(null);
+  const [waForm, setWaForm] = useState({
+    phoneNumberId: "",
+    accessToken: "",
+    businessAccountId: "",
+  });
+  const [githubForm, setGithubForm] = useState({
+    githubToken: "",
+    gistId: "",
+  });
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+    phoneNumber?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (settings) {
-      setForm({
+      setWaForm({
         phoneNumberId: settings.phoneNumberId ?? "",
         accessToken: "",
         businessAccountId: settings.businessAccountId ?? "",
       });
+      setGithubForm({
+        githubToken: "",
+        gistId: settings.gistId ?? "",
+      });
     }
   }, [settings]);
 
-  async function handleSave() {
-    await saveMutation.mutateAsync({ data: { phoneNumberId: form.phoneNumberId, accessToken: form.accessToken, businessAccountId: form.businessAccountId } });
+  async function handleSaveWA() {
+    const data: Record<string, string> = {};
+    if (waForm.phoneNumberId) data.phoneNumberId = waForm.phoneNumberId;
+    if (waForm.accessToken) data.accessToken = waForm.accessToken;
+    if (waForm.businessAccountId !== undefined)
+      data.businessAccountId = waForm.businessAccountId;
+    await saveMutation.mutateAsync({ data });
     queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
-    toast({ title: "Settings saved" });
+    toast({ title: "تم حفظ بيانات WhatsApp" });
+  }
+
+  async function handleSaveGitHub() {
+    const data: Record<string, string> = {};
+    if (githubForm.githubToken) data.githubToken = githubForm.githubToken;
+    if (githubForm.gistId !== undefined) data.gistId = githubForm.gistId;
+    await saveMutation.mutateAsync({ data });
+    queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+    toast({ title: "تم حفظ بيانات GitHub" });
   }
 
   async function handleTest() {
-    const result = await testMutation.mutateAsync({});
+    const result = await testMutation.mutateAsync(undefined as unknown as void);
     setTestResult(result);
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-8 max-w-2xl" dir="rtl">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure your WhatsApp Business API credentials</p>
+        <h1 className="text-3xl font-bold tracking-tight">الإعدادات</h1>
+        <p className="text-muted-foreground mt-1">
+          ضيف بيانات WhatsApp API وGitHub لحفظ قوائم الأرقام
+        </p>
       </div>
 
-      {/* Setup Guide */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Setup Guide — How to get your API credentials</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {SETUP_STEPS.map((step) => (
-            <div key={step.number} className="flex gap-4">
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                {step.number}
-              </div>
-              <div>
-                <p className="font-medium text-sm">{step.title}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">{step.description}</p>
-                {step.link && (
-                  <a href={step.link} target="_blank" rel="noopener noreferrer" className="text-sm text-primary flex items-center gap-1 mt-1 hover:underline">
-                    {step.linkText} <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      {/* Credentials Form */}
+      {/* WhatsApp API Section */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            API Credentials
+            WhatsApp Business API
             {settings?.isConfigured ? (
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Configured</span>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                مضبوط
+              </span>
             ) : (
-              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">Not configured</span>
+              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
+                مش مضبوط
+              </span>
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+          {/* Setup Steps */}
+          <div className="space-y-4">
+            <p className="text-sm font-medium text-muted-foreground">
+              خطوات الإعداد:
+            </p>
+            {WA_STEPS.map((step) => (
+              <div key={step.n} className="flex gap-3">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  {step.n}
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{step.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {step.desc}
+                  </p>
+                  {step.link && (
+                    <a
+                      href={step.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary flex items-center gap-1 mt-1 hover:underline"
+                    >
+                      {step.linkText}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Separator />
+
+          {/* Form */}
           {isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
+            <p className="text-sm text-muted-foreground">جاري التحميل...</p>
           ) : (
-            <>
+            <div className="space-y-4">
               <div>
                 <Label>Phone Number ID *</Label>
                 <Input
-                  value={form.phoneNumberId}
-                  onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })}
-                  placeholder="e.g. 123456789012345"
+                  value={waForm.phoneNumberId}
+                  onChange={(e) =>
+                    setWaForm({ ...waForm, phoneNumberId: e.target.value })
+                  }
+                  placeholder="123456789012345"
+                  dir="ltr"
+                  className="mt-1.5 font-mono"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Found in WhatsApp &gt; Getting Started in your Meta app</p>
               </div>
               <div>
                 <Label>Access Token *</Label>
                 <Input
                   type="password"
-                  value={form.accessToken}
-                  onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-                  placeholder={settings?.accessToken ? "Enter new token to update (current: " + settings.accessToken + ")" : "Paste your permanent access token"}
-                />
-                <p className="text-xs text-muted-foreground mt-1">Generate a permanent token from Meta Business Manager &gt; System Users</p>
-              </div>
-              <div>
-                <Label>Business Account ID (optional)</Label>
-                <Input
-                  value={form.businessAccountId}
-                  onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })}
-                  placeholder="e.g. 987654321098765"
+                  value={waForm.accessToken}
+                  onChange={(e) =>
+                    setWaForm({ ...waForm, accessToken: e.target.value })
+                  }
+                  placeholder={
+                    settings?.accessToken
+                      ? `الحالي: ${settings.accessToken} — الصق توكن جديد للتحديث`
+                      : "الصق الـ Access Token هنا"
+                  }
+                  dir="ltr"
+                  className="mt-1.5"
                 />
               </div>
 
-              {/* Test Result */}
               {testResult && (
-                <div className={`flex items-start gap-2 p-3 rounded-md text-sm ${testResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                <div
+                  className={`flex items-start gap-2 p-3 rounded-md text-sm ${
+                    testResult.success
+                      ? "bg-green-50 text-green-800"
+                      : "bg-red-50 text-red-800"
+                  }`}
+                >
                   {testResult.success ? (
                     <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   ) : (
@@ -171,21 +242,138 @@ export default function Settings() {
                   )}
                   <div>
                     <p>{testResult.message}</p>
-                    {testResult.phoneNumber && <p className="font-medium mt-0.5">Phone: {testResult.phoneNumber}</p>}
+                    {testResult.phoneNumber && (
+                      <p className="font-medium mt-0.5">
+                        رقم الهاتف: {testResult.phoneNumber}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={!form.phoneNumberId || !form.accessToken || saveMutation.isPending}>
-                  {saveMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save Credentials"}
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSaveWA}
+                  disabled={saveMutation.isPending}
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  حفظ بيانات WhatsApp
                 </Button>
-                <Button variant="outline" onClick={handleTest} disabled={testMutation.isPending}>
-                  {testMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Testing...</> : "Test Connection"}
+                <Button
+                  variant="outline"
+                  onClick={handleTest}
+                  disabled={testMutation.isPending}
+                >
+                  {testMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  اختبار الاتصال
                 </Button>
               </div>
-            </>
+            </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* GitHub Gist Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Github className="h-4 w-4" />
+            GitHub Gist — لحفظ قوائم الأرقام
+            {settings?.hasGithubToken ? (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                مضبوط
+              </span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                اختياري
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            بيخليك تحفظ قوائم أرقام العملاء على GitHub Gist وتحملها في أي وقت.
+            مجاني تماماً ومش محتاج قاعدة بيانات.
+          </p>
+
+          <div className="space-y-4">
+            <p className="text-sm font-medium text-muted-foreground">
+              خطوات الإعداد:
+            </p>
+            {GITHUB_STEPS.map((step) => (
+              <div key={step.n} className="flex gap-3">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-bold">
+                  {step.n}
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{step.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {step.desc}
+                  </p>
+                  {step.link && (
+                    <a
+                      href={step.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary flex items-center gap-1 mt-1 hover:underline"
+                    >
+                      {step.linkText}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div>
+              <Label>GitHub Personal Access Token</Label>
+              <Input
+                type="password"
+                value={githubForm.githubToken}
+                onChange={(e) =>
+                  setGithubForm({ ...githubForm, githubToken: e.target.value })
+                }
+                placeholder={
+                  settings?.hasGithubToken
+                    ? "محفوظ — الصق توكن جديد للتحديث"
+                    : "ghp_xxxxxxxxxxxxxxxxxxxx"
+                }
+                dir="ltr"
+                className="mt-1.5 font-mono"
+              />
+            </div>
+            <div>
+              <Label>Gist ID (اختياري — هيتملى تلقائياً)</Label>
+              <Input
+                value={githubForm.gistId}
+                onChange={(e) =>
+                  setGithubForm({ ...githubForm, gistId: e.target.value })
+                }
+                placeholder="سيتم الإنشاء تلقائياً أول مرة تحفظ قائمة"
+                dir="ltr"
+                className="mt-1.5 font-mono text-sm"
+              />
+            </div>
+            <Button
+              onClick={handleSaveGitHub}
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Github className="h-4 w-4 mr-2" />
+              )}
+              حفظ بيانات GitHub
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

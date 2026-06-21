@@ -3,12 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
-import Dashboard from "@/pages/dashboard";
-import Contacts from "@/pages/contacts";
-import Lists from "@/pages/lists";
-import Templates from "@/pages/templates";
-import Broadcasts from "@/pages/broadcasts";
-import BroadcastDetail from "@/pages/broadcast-detail";
+import Campaign from "@/pages/campaign";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -18,14 +13,7 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/contacts" component={Contacts} />
-        <Route path="/lists" component={Lists} />
-        <Route path="/templates" component={Templates} />
-        <Route path="/broadcasts/:id">
-          {(params) => <BroadcastDetail id={params.id} />}
-        </Route>
-        <Route path="/broadcasts" component={Broadcasts} />
+        <Route path="/" component={Campaign} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

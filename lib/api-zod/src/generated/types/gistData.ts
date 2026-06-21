@@ -5,7 +5,8 @@
  * WhatsApp Real Estate Broadcast API
  * OpenAPI spec version: 0.1.0
  */
+import type { PhoneList } from './phoneList';
 
-export interface HealthStatus {
-  status: string;
+export interface GistData {
+  lists: PhoneList[];
 }
