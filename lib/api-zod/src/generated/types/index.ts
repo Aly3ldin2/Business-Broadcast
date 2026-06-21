@@ -7,12 +7,13 @@
  */
 
 export * from './campaignInput';
-export * from './campaignInputMediaType';
 export * from './campaignResult';
 export * from './connectionTest';
 export * from './gistData';
 export * from './gistSaveResult';
 export * from './healthStatus';
+export * from './mediaItem';
+export * from './mediaItemType';
 export * from './messageResult';
 export * from './phoneList';
 export * from './settings';

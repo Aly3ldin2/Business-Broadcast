@@ -22,8 +22,10 @@ export const HealthCheckResponse = zod.object({
 export const SendCampaignBody = zod.object({
   "phones": zod.array(zod.string()).describe('List of phone numbers in international format (e.g. 201012345678)'),
   "message": zod.string().describe('The message text'),
-  "mediaUrl": zod.string().nullish().describe('Optional image or video URL'),
-  "mediaType": zod.union([zod.literal('image'),zod.literal('video'),zod.literal(null)]).nullish().describe('Type of media attached')
+  "mediaItems": zod.array(zod.object({
+  "url": zod.string(),
+  "type": zod.enum(['image', 'video'])
+})).optional().describe('Optional list of images\/videos to send')
 })
 
 export const SendCampaignResponse = zod.object({

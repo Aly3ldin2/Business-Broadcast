@@ -9,33 +9,26 @@ export interface HealthStatus {
   status: string;
 }
 
-/**
- * Type of media attached
- * @nullable
- */
-export type CampaignInputMediaType = typeof CampaignInputMediaType[keyof typeof CampaignInputMediaType] | null;
+export type MediaItemType = typeof MediaItemType[keyof typeof MediaItemType];
 
 
-export const CampaignInputMediaType = {
+export const MediaItemType = {
   image: 'image',
   video: 'video',
 } as const;
+
+export interface MediaItem {
+  url: string;
+  type: MediaItemType;
+}
 
 export interface CampaignInput {
   /** List of phone numbers in international format (e.g. 201012345678) */
   phones: string[];
   /** The message text */
   message: string;
-  /**
-     * Optional image or video URL
-     * @nullable
-     */
-  mediaUrl?: string | null;
-  /**
-     * Type of media attached
-     * @nullable
-     */
-  mediaType?: CampaignInputMediaType;
+  /** Optional list of images/videos to send */
+  mediaItems?: MediaItem[];
 }
 
 export interface MessageResult {

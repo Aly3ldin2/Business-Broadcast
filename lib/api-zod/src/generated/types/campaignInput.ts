@@ -5,21 +5,13 @@
  * WhatsApp Real Estate Broadcast API
  * OpenAPI spec version: 0.1.0
  */
-import type { CampaignInputMediaType } from './campaignInputMediaType';
+import type { MediaItem } from './mediaItem';
 
 export interface CampaignInput {
   /** List of phone numbers in international format (e.g. 201012345678) */
   phones: string[];
   /** The message text */
   message: string;
-  /**
-     * Optional image or video URL
-     * @nullable
-     */
-  mediaUrl?: string | null;
-  /**
-     * Type of media attached
-     * @nullable
-     */
-  mediaType?: CampaignInputMediaType;
+  /** Optional list of images/videos to send */
+  mediaItems?: MediaItem[];
 }

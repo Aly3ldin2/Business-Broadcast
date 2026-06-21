@@ -129,6 +129,16 @@ components:
         status:
           type: string
 
+    MediaItem:
+      type: object
+      required: [url, type]
+      properties:
+        url:
+          type: string
+        type:
+          type: string
+          enum: [image, video]
+
     CampaignInput:
       type: object
       required: [phones, message]
@@ -141,13 +151,11 @@ components:
         message:
           type: string
           description: The message text
-        mediaUrl:
-          type: ["string", "null"]
-          description: Optional image or video URL
-        mediaType:
-          type: ["string", "null"]
-          enum: [image, video, null]
-          description: Type of media attached
+        mediaItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaItem"
+          description: Optional list of images/videos to send
 
     CampaignResult:
       type: object

@@ -30,6 +30,9 @@ import {
   ImageIcon,
   Video,
   AlertTriangle,
+  Plus,
+  Trash2,
+  GripVertical,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,16 +47,20 @@ interface PhoneList {
   phones: string[];
 }
 
+interface MediaItem {
+  id: string;
+  url: string;
+  type: "image" | "video";
+}
+
 export default function Campaign() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [phonesText, setPhonesText] = useState("");
   const [listName, setListName] = useState("");
-
   const [message, setMessage] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [mediaType, setMediaType] = useState<"image" | "video" | "none">("none");
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
 
   const [sendResults, setSendResults] = useState<SendResult[] | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -80,17 +87,34 @@ export default function Campaign() {
 
   const phones = parsePhones();
 
+  function addMediaItem(type: "image" | "video") {
+    setMediaItems((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), url: "", type },
+    ]);
+  }
+
+  function updateMediaItem(id: string, url: string) {
+    setMediaItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, url } : item))
+    );
+  }
+
+  function removeMediaItem(id: string) {
+    setMediaItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
   async function handleSend() {
     setIsSending(true);
     setIsConfirmOpen(false);
     setSendResults(null);
+    const validMedia = mediaItems.filter((m) => m.url.trim());
     try {
       const result = await sendMutation.mutateAsync({
         data: {
           phones,
           message,
-          mediaUrl: mediaUrl || null,
-          mediaType: mediaType !== "none" ? mediaType : null,
+          mediaItems: validMedia.map((m) => ({ url: m.url, type: m.type })),
         },
       });
       setSendResults(result.results);
@@ -109,22 +133,20 @@ export default function Campaign() {
   }
 
   async function handleSaveList() {
-    const existingLists: PhoneList[] = gistData?.lists ?? [];
+    const existing: PhoneList[] = gistData?.lists ?? [];
     const name = listName.trim();
     if (!name) return;
-    const idx = existingLists.findIndex((l) => l.name === name);
-    let newLists: PhoneList[];
-    if (idx >= 0) {
-      newLists = existingLists.map((l, i) => (i === idx ? { ...l, phones } : l));
-    } else {
-      newLists = [...existingLists, { name, phones }];
-    }
+    const idx = existing.findIndex((l) => l.name === name);
+    const newLists =
+      idx >= 0
+        ? existing.map((l, i) => (i === idx ? { ...l, phones } : l))
+        : [...existing, { name, phones }];
     try {
       await saveMutation.mutateAsync({ data: { lists: newLists } });
       queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
       setIsSaveListOpen(false);
       setListName("");
-      toast({ title: `تم حفظ القائمة "${name}" — ${phones.length} رقم` });
+      toast({ title: `تم حفظ "${name}" — ${phones.length} رقم` });
     } catch (e: any) {
       toast({ title: "فشل الحفظ", description: e?.message, variant: "destructive" });
     }
@@ -136,15 +158,19 @@ export default function Campaign() {
     toast({ title: `تم تحميل "${list.name}" — ${list.phones.length} رقم` });
   }
 
+  const validMediaItems = mediaItems.filter((m) => m.url.trim());
   const successCount = sendResults?.filter((r) => r.success).length ?? 0;
   const failCount = sendResults?.filter((r) => !r.success).length ?? 0;
+  const totalMessages = phones.length > 0
+    ? phones.length * (1 + validMediaItems.length)
+    : 0;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">إرسال رسالة</h1>
-        <p className="text-muted-foreground mt-1">
-          ألصق الأرقام، اكتب الرسالة، واضغط إرسال
+        <h1 className="text-2xl font-bold tracking-tight">رسالة جديدة</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          ألصق الأرقام، اكتب الرسالة، أضف صور وفيديوهات، ثم أرسل
         </p>
       </div>
 
@@ -164,8 +190,8 @@ export default function Campaign() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold shrink-0">
                 1
               </span>
               أرقام الهاتف
@@ -175,36 +201,38 @@ export default function Campaign() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => setIsLoadListOpen(true)}
                   disabled={!gistData?.lists?.length}
                 >
-                  <CloudDownload className="h-3.5 w-3.5 mr-1" />
+                  <CloudDownload className="h-3 w-3 mr-1" />
                   تحميل قائمة
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs"
                   onClick={() => setIsSaveListOpen(true)}
                   disabled={phones.length === 0}
                 >
-                  <CloudUpload className="h-3.5 w-3.5 mr-1" />
+                  <CloudUpload className="h-3 w-3 mr-1" />
                   حفظ كقائمة
                 </Button>
               </div>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           <Textarea
-            placeholder={`201012345678\n201123456789\n201234567890\n\nألصق الأرقام هنا — رقم في كل سطر أو مفصولة بفاصلة`}
+            placeholder={`201012345678\n201123456789\n201234567890\n\nألصق الأرقام — رقم في كل سطر أو مفصولة بفاصلة`}
             value={phonesText}
             onChange={(e) => setPhonesText(e.target.value)}
-            rows={6}
+            rows={5}
             className="font-mono text-sm resize-none"
             dir="ltr"
           />
           {phones.length > 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               <strong className="text-foreground">{phones.length}</strong> رقم صالح
             </p>
           )}
@@ -214,78 +242,122 @@ export default function Campaign() {
       {/* Step 2: Message */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold shrink-0">
               2
             </span>
             الرسالة
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label>نص الرسالة *</Label>
-            <Textarea
-              placeholder="اكتب نص الرسالة هنا..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-              className="mt-1.5"
-            />
-          </div>
+        <CardContent>
+          <Textarea
+            placeholder="اكتب نص الرسالة هنا..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={5}
+            className="resize-none"
+          />
+        </CardContent>
+      </Card>
 
-          <div>
-            <Label className="text-sm text-muted-foreground mb-2 block">
-              نوع المحتوى (اختياري)
-            </Label>
-            <div className="grid grid-cols-3 gap-3">
-              {(["none", "image", "video"] as const).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setMediaType(type)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors text-sm font-medium ${
-                    mediaType === type
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border text-muted-foreground hover:border-muted-foreground"
-                  }`}
+      {/* Step 3: Media */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold shrink-0">
+                3
+              </span>
+              صور وفيديوهات
+              <span className="text-xs font-normal text-muted-foreground">(اختياري)</span>
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => addMediaItem("image")}
+              >
+                <ImageIcon className="h-3 w-3 mr-1" />
+                + صورة
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => addMediaItem("video")}
+              >
+                <Video className="h-3 w-3 mr-1" />
+                + فيديو
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {mediaItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              اضغط "+ صورة" أو "+ فيديو" لإضافة مرفق
+            </p>
+          ) : (
+            mediaItems.map((item, idx) => (
+              <div key={item.id} className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <GripVertical className="h-4 w-4 text-muted-foreground/40" />
+                  <span
+                    className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                      item.type === "image"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-purple-100 text-purple-700"
+                    }`}
+                  >
+                    {item.type === "image" ? (
+                      <ImageIcon className="h-3 w-3" />
+                    ) : (
+                      <Video className="h-3 w-3" />
+                    )}
+                    {item.type === "image" ? "صورة" : "فيديو"} {idx + 1}
+                  </span>
+                </div>
+                <Input
+                  placeholder={
+                    item.type === "image"
+                      ? "https://example.com/photo.jpg"
+                      : "https://example.com/video.mp4"
+                  }
+                  value={item.url}
+                  onChange={(e) => updateMediaItem(item.id, e.target.value)}
+                  className="font-mono text-xs flex-1 h-8"
+                  dir="ltr"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeMediaItem(item.id)}
                 >
-                  {type === "none" && <span className="text-lg">✉️</span>}
-                  {type === "image" && <ImageIcon className="h-5 w-5" />}
-                  {type === "video" && <Video className="h-5 w-5" />}
-                  {type === "none" ? "نص فقط" : type === "image" ? "صورة" : "فيديو"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {mediaType !== "none" && (
-            <div>
-              <Label>رابط {mediaType === "image" ? "الصورة" : "الفيديو"} *</Label>
-              <Input
-                placeholder={
-                  mediaType === "image"
-                    ? "https://example.com/image.jpg"
-                    : "https://example.com/video.mp4"
-                }
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-                className="mt-1.5 font-mono text-sm"
-                dir="ltr"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                الرابط لازم يكون متاح للعموم (public URL).
-              </p>
-            </div>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))
+          )}
+          {validMediaItems.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              سيتم إرسال الرسالة كـ{" "}
+              <strong className="text-foreground">
+                {1 + validMediaItems.length} رسالة
+              </strong>{" "}
+              لكل رقم (نص + {validMediaItems.length} مرفق)
+            </p>
           )}
         </CardContent>
       </Card>
 
-      {/* Send */}
+      {/* Send Button */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">
           {phones.length > 0 && message && (
             <>
-              جاهز للإرسال لـ <strong>{phones.length}</strong> رقم
+              {totalMessages} رسالة ← {phones.length} رقم
             </>
           )}
         </span>
@@ -315,7 +387,7 @@ export default function Campaign() {
       {sendResults && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-3">
               نتائج الإرسال
               <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
                 {successCount} نجح
@@ -328,15 +400,15 @@ export default function Campaign() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="max-h-64 overflow-y-auto divide-y">
+            <div className="max-h-60 overflow-y-auto divide-y">
               {sendResults.map((r, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                   {r.success ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
                   )}
-                  <span className="font-mono text-muted-foreground">{r.phone}</span>
+                  <span className="font-mono text-muted-foreground text-xs">{r.phone}</span>
                   {r.error && (
                     <span className="text-xs text-red-500 ml-auto truncate max-w-xs">
                       {r.error}
@@ -349,7 +421,7 @@ export default function Campaign() {
         </Card>
       )}
 
-      {/* Confirm Send */}
+      {/* Confirm Dialog */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -357,20 +429,34 @@ export default function Campaign() {
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <p>
-              سيتم إرسال الرسالة لـ <strong>{phones.length} رقم</strong>.
+              سيتم إرسال{" "}
+              <strong>{1 + validMediaItems.length} رسالة</strong> لـ{" "}
+              <strong>{phones.length} رقم</strong>{" "}
+              ({totalMessages} رسالة إجمالاً).
             </p>
             <div className="bg-muted/50 rounded-md p-3 text-xs whitespace-pre-wrap break-words">
               {message.slice(0, 200)}
               {message.length > 200 ? "..." : ""}
             </div>
-            {mediaType !== "none" && mediaUrl && (
-              <p className="text-muted-foreground">
-                + {mediaType === "image" ? "صورة" : "فيديو"} مرفق
-              </p>
+            {validMediaItems.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {validMediaItems.map((m, i) => (
+                  <span
+                    key={i}
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                      m.type === "image"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-purple-100 text-purple-700"
+                    }`}
+                  >
+                    {m.type === "image" ? "📷" : "🎬"}{" "}
+                    {m.type === "image" ? `صورة ${i + 1}` : `فيديو ${i + 1}`}
+                  </span>
+                ))}
+              </div>
             )}
             <p className="text-amber-600 text-xs">
-              ملحوظة: واتساب Business API يتيح الرسائل المجانية للمستخدمين الذين
-              تواصلوا معك خلال 24 ساعة. للرسائل التسويقية تحتاج template معتمد.
+              ملحوظة: رسائل التسويق لعملاء جدد تحتاج template معتمد من Meta.
             </p>
           </div>
           <DialogFooter>
@@ -414,10 +500,8 @@ export default function Campaign() {
               onClick={handleSaveList}
               disabled={!listName.trim() || saveMutation.isPending}
             >
-              {saveMutation.isPending ? (
+              {saveMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CloudUpload className="h-4 w-4 mr-2" />
               )}
               حفظ
             </Button>
@@ -445,7 +529,7 @@ export default function Campaign() {
                     <p className="font-medium text-sm">{list.name}</p>
                     <p className="text-xs text-muted-foreground">{list.phones.length} رقم</p>
                   </div>
-                  <CloudDownload className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <CloudDownload className="h-4 w-4 text-muted-foreground shrink-0" />
                 </button>
               ))}
             </div>
