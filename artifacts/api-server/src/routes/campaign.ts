@@ -26,9 +26,7 @@ async function sendWhatsApp(
     messages?: Array<{ id: string }>;
     error?: { message?: string };
   };
-  if (response.ok && data.messages?.length) {
-    return { ok: true };
-  }
+  if (response.ok && data.messages?.length) return { ok: true };
   return { ok: false, error: data.error?.message ?? `HTTP ${response.status}` };
 }
 
@@ -40,9 +38,7 @@ router.post("/send", async (req, res) => {
 
   const [settings] = await db.select().from(settingsTable).limit(1);
   if (!settings?.phoneNumberId || !settings?.accessToken) {
-    return res.status(400).json({
-      error: "WhatsApp API not configured. Go to Settings first.",
-    });
+    return res.status(400).json({ error: "WhatsApp API not configured. Go to Settings first." });
   }
 
   const { phones, message, mediaItems } = parsed.data;
@@ -60,7 +56,7 @@ router.post("/send", async (req, res) => {
 
     const errors: string[] = [];
 
-    // 1. Send text message first
+    // 1. Send text message
     const textResult = await sendWhatsApp(
       settings.phoneNumberId,
       settings.accessToken,
@@ -74,10 +70,11 @@ router.post("/send", async (req, res) => {
     );
     if (!textResult.ok) errors.push(textResult.error ?? "text failed");
 
-    // 2. Send each media item as a separate message
+    // 2. Send each media item (by ID or URL)
     if (mediaItems && mediaItems.length > 0) {
       for (const item of mediaItems) {
         await new Promise((r) => setTimeout(r, 150));
+        const mediaPayload = item.id ? { id: item.id } : { link: item.url };
         const mediaResult = await sendWhatsApp(
           settings.phoneNumberId,
           settings.accessToken,
@@ -86,7 +83,7 @@ router.post("/send", async (req, res) => {
             messaging_product: "whatsapp",
             to: phone,
             type: item.type,
-            [item.type]: { link: item.url },
+            [item.type]: mediaPayload,
           }
         );
         if (!mediaResult.ok) errors.push(mediaResult.error ?? `${item.type} failed`);

@@ -8,6 +8,15 @@
 import type { MediaItemType } from './mediaItemType';
 
 export interface MediaItem {
-  url: string;
+  /**
+     * Public URL for the media
+     * @nullable
+     */
+  url?: string | null;
+  /**
+     * WhatsApp media ID (from upload endpoint)
+     * @nullable
+     */
+  id?: string | null;
   type: MediaItemType;
 }

@@ -131,13 +131,25 @@ components:
 
     MediaItem:
       type: object
-      required: [url, type]
+      required: [type]
       properties:
         url:
-          type: string
+          type: ["string", "null"]
+          description: Public URL for the media
+        id:
+          type: ["string", "null"]
+          description: WhatsApp media ID (from upload endpoint)
         type:
           type: string
           enum: [image, video]
+
+    MediaUploadResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: WhatsApp media ID
 
     CampaignInput:
       type: object

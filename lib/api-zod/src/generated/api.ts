@@ -23,7 +23,8 @@ export const SendCampaignBody = zod.object({
   "phones": zod.array(zod.string()).describe('List of phone numbers in international format (e.g. 201012345678)'),
   "message": zod.string().describe('The message text'),
   "mediaItems": zod.array(zod.object({
-  "url": zod.string(),
+  "url": zod.string().nullish().describe('Public URL for the media'),
+  "id": zod.string().nullish().describe('WhatsApp media ID (from upload endpoint)'),
   "type": zod.enum(['image', 'video'])
 })).optional().describe('Optional list of images\/videos to send')
 })

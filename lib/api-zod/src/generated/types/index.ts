@@ -14,6 +14,7 @@ export * from './gistSaveResult';
 export * from './healthStatus';
 export * from './mediaItem';
 export * from './mediaItemType';
+export * from './mediaUploadResult';
 export * from './messageResult';
 export * from './phoneList';
 export * from './settings';
