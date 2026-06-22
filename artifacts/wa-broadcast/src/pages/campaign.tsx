@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useSendCampaign,
@@ -20,12 +20,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
-  Send, Loader2, CloudDownload, CloudUpload,
+  Send, Loader2, CloudUpload,
   CheckCircle2, XCircle, ImageIcon, Video,
-  AlertTriangle, Trash2, GripVertical, Link2, Upload, Users,
-  Pencil, Check, X, PenLine,
+  AlertTriangle, Trash2, Users, KeyboardIcon,
+  Pencil, Check, X, PenLine, UploadCloud,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -40,18 +39,12 @@ interface PhoneList {
   phones: string[];
 }
 
-type MediaSource = "url" | "device";
-
 interface MediaItem {
   id: string;
   type: "image" | "video";
-  source: MediaSource;
-  // URL mode
-  url: string;
-  // Device upload mode
-  file?: File;
-  preview?: string;     // object URL for preview
-  waMediaId?: string;   // returned from upload
+  file: File;
+  preview: string;
+  waMediaId?: string;
   uploading?: boolean;
   uploadError?: string;
 }
@@ -60,17 +53,28 @@ export default function Campaign() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // ── Phone input mode ────────────────────────────────────────────
+  const [phoneMode, setPhoneMode] = useState<"lists" | "manual">("lists");
   const [phonesText, setPhonesText] = useState("");
   const [listName, setListName] = useState("");
+  const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
+
+  // ── Message ─────────────────────────────────────────────────────
   const [message, setMessage] = useState("");
+
+  // ── Media ───────────────────────────────────────────────────────
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Send state ──────────────────────────────────────────────────
   const [sendResults, setSendResults] = useState<SendResult[] | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSaveListOpen, setIsSaveListOpen] = useState(false);
-  const [isLoadListOpen, setIsLoadListOpen] = useState(false);
 
-  // ── Signature ──────────────────────────────────────────────────
+  // ── Signature ───────────────────────────────────────────────────
   const [signature, setSignature] = useState(() =>
     localStorage.getItem("wa_signature") ?? ""
   );
@@ -83,31 +87,20 @@ export default function Campaign() {
   useEffect(() => {
     localStorage.setItem("wa_signature", signature);
   }, [signature]);
-
   useEffect(() => {
     localStorage.setItem("wa_signature_enabled", String(signatureEnabled));
   }, [signatureEnabled]);
 
-  function startEditSignature() {
-    setSigDraft(signature);
-    setIsEditingSignature(true);
-  }
-  function saveSignature() {
-    setSignature(sigDraft);
-    setIsEditingSignature(false);
-  }
-  function cancelEditSignature() {
-    setIsEditingSignature(false);
-  }
+  function startEditSignature() { setSigDraft(signature); setIsEditingSignature(true); }
+  function saveSignature() { setSignature(sigDraft); setIsEditingSignature(false); }
+  function cancelEditSignature() { setIsEditingSignature(false); }
 
   const fullMessage =
     signatureEnabled && signature.trim()
       ? message + "\n\n" + signature.trim()
       : message;
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingAddType = useRef<"image" | "video">("image");
-
+  // ── API hooks ───────────────────────────────────────────────────
   const { data: settings } = useGetSettings();
   const { data: gistData } = useLoadPhonesFromGist({
     query: {
@@ -118,40 +111,55 @@ export default function Campaign() {
   const sendMutation = useSendCampaign();
   const saveMutation = useSavePhonesToGist();
 
+  // ── Phone parsing ───────────────────────────────────────────────
   function parsePhones(): string[] {
     return phonesText
       .split(/[\n,،;]+/)
       .map((p) => p.trim().replace(/[\s+\-()]/g, ""))
       .filter((p) => p.length >= 10);
   }
-  const phones = parsePhones();
 
-  // ── Media helpers ──────────────────────────────────────────────
-  function addUrlItem(type: "image" | "video") {
-    setMediaItems((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), type, source: "url", url: "" },
-    ]);
+  function getPhonesFromSelectedLists(): string[] {
+    if (!gistData?.lists) return [];
+    const all = new Set<string>();
+    gistData.lists
+      .filter((l) => selectedLists.has(l.name))
+      .forEach((l) => l.phones.forEach((p) => all.add(p)));
+    return Array.from(all);
   }
 
-  function triggerFileInput(type: "image" | "video") {
-    pendingAddType.current = type;
-    if (fileInputRef.current) {
-      fileInputRef.current.accept = type === "image" ? "image/jpeg,image/png,image/webp" : "video/mp4,video/3gpp";
-      fileInputRef.current.click();
-    }
+  const phones = phoneMode === "lists" ? getPhonesFromSelectedLists() : parsePhones();
+
+  function toggleList(listItem: PhoneList) {
+    setSelectedLists((prev) => {
+      const next = new Set(prev);
+      if (next.has(listItem.name)) next.delete(listItem.name);
+      else next.add(listItem.name);
+      return next;
+    });
   }
 
-  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    if (!files.length) return;
+  // ── Media upload ────────────────────────────────────────────────
+  async function uploadFile(file: File): Promise<string | undefined> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/media/upload", { method: "POST", body: formData });
+    const data = await res.json() as { id?: string; error?: string };
+    if (res.ok && data.id) return data.id;
+    throw new Error(data.error ?? "فشل الرفع");
+  }
 
-    const newItems: MediaItem[] = files.map((file) => ({
+  const processFiles = useCallback(async (files: File[]) => {
+    const validFiles = files.filter((f) => {
+      const isImage = f.type.startsWith("image/");
+      const isVideo = f.type.startsWith("video/");
+      return isImage || isVideo;
+    });
+    if (!validFiles.length) return;
+
+    const newItems: MediaItem[] = validFiles.map((file) => ({
       id: crypto.randomUUID(),
-      type: pendingAddType.current,
-      source: "device" as const,
-      url: "",
+      type: file.type.startsWith("image/") ? "image" : "video",
       file,
       preview: URL.createObjectURL(file),
       uploading: true,
@@ -159,50 +167,35 @@ export default function Campaign() {
 
     setMediaItems((prev) => [...prev, ...newItems]);
 
-    // Upload each file to WhatsApp via backend
     for (const item of newItems) {
-      if (!item.file) continue;
       try {
-        const formData = new FormData();
-        formData.append("file", item.file);
-        const res = await fetch("/api/media/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json() as { id?: string; error?: string };
-        if (res.ok && data.id) {
-          setMediaItems((prev) =>
-            prev.map((m) =>
-              m.id === item.id
-                ? { ...m, waMediaId: data.id, uploading: false }
-                : m
-            )
-          );
-        } else {
-          setMediaItems((prev) =>
-            prev.map((m) =>
-              m.id === item.id
-                ? { ...m, uploading: false, uploadError: data.error ?? "فشل الرفع" }
-                : m
-            )
-          );
-        }
-      } catch {
+        const waMediaId = await uploadFile(item.file);
+        setMediaItems((prev) =>
+          prev.map((m) => m.id === item.id ? { ...m, waMediaId, uploading: false } : m)
+        );
+      } catch (e: unknown) {
         setMediaItems((prev) =>
           prev.map((m) =>
             m.id === item.id
-              ? { ...m, uploading: false, uploadError: "خطأ في الاتصال" }
+              ? { ...m, uploading: false, uploadError: (e as Error)?.message ?? "خطأ" }
               : m
           )
         );
       }
     }
+  }, []);
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    void processFiles(files);
   }
 
-  function updateUrl(id: string, url: string) {
-    setMediaItems((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, url } : m))
-    );
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    void processFiles(files);
   }
 
   function removeItem(id: string) {
@@ -213,22 +206,12 @@ export default function Campaign() {
     });
   }
 
-  // ── Send ───────────────────────────────────────────────────────
-  function buildApiMediaItems() {
-    return mediaItems
-      .filter((m) => {
-        if (m.source === "device") return !!m.waMediaId;
-        return !!m.url.trim();
-      })
-      .map((m) => ({
-        type: m.type,
-        id: m.waMediaId ?? null,
-        url: m.source === "url" ? m.url.trim() : null,
-      }));
-  }
-
-  const readyMedia = buildApiMediaItems();
+  // ── Send ────────────────────────────────────────────────────────
+  const readyMedia = mediaItems
+    .filter((m) => !!m.waMediaId)
+    .map((m) => ({ type: m.type, id: m.waMediaId!, url: null }));
   const anyUploading = mediaItems.some((m) => m.uploading);
+  const totalMessages = phones.length > 0 ? phones.length * (1 + readyMedia.length) : 0;
 
   async function handleSend() {
     setIsSending(true);
@@ -271,15 +254,11 @@ export default function Campaign() {
     }
   }
 
-  function loadList(list: PhoneList) {
-    setPhonesText(list.phones.join("\n"));
-    setIsLoadListOpen(false);
-    toast({ title: `تم تحميل "${list.name}" — ${list.phones.length} رقم` });
-  }
-
   const successCount = sendResults?.filter((r) => r.success).length ?? 0;
   const failCount = sendResults?.filter((r) => !r.success).length ?? 0;
-  const totalMessages = phones.length > 0 ? phones.length * (1 + readyMedia.length) : 0;
+
+  const lists = gistData?.lists ?? [];
+  const hasLists = lists.length > 0;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -288,8 +267,9 @@ export default function Campaign() {
         ref={fileInputRef}
         type="file"
         multiple
+        accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp"
         className="hidden"
-        onChange={handleFileSelected}
+        onChange={handleFileInput}
       />
 
       <div>
@@ -300,7 +280,7 @@ export default function Campaign() {
       </div>
 
       {!settings?.isConfigured && (
-        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <strong>تنبيه:</strong> لازم تضيف بيانات WhatsApp API الأول.{" "}
@@ -309,89 +289,130 @@ export default function Campaign() {
         </div>
       )}
 
-      {/* Step 1: Phones */}
+      {/* ─── Step 1: Phones ─── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <StepBadge n={1} />
-              أرقام الهاتف
+              <StepBadge n={1} />أرقام الهاتف
             </CardTitle>
-            {settings?.hasGithubToken && (
-              <Button variant="outline" size="sm" className="h-7 text-xs"
-                onClick={() => setIsSaveListOpen(true)}
-                disabled={phones.length === 0}>
-                <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Mode toggle */}
+              <div className="flex rounded-lg border bg-muted p-0.5 text-xs">
+                {settings?.hasGithubToken && hasLists && (
+                  <button
+                    onClick={() => setPhoneMode("lists")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+                      phoneMode === "lists"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Users className="h-3 w-3" />
+                    قوائم محفوظة
+                  </button>
+                )}
+                <button
+                  onClick={() => setPhoneMode("manual")}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+                    phoneMode === "manual"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <KeyboardIcon className="h-3 w-3" />
+                  إدخال يدوي
+                </button>
+              </div>
+              {/* Save button (manual mode) */}
+              {phoneMode === "manual" && settings?.hasGithubToken && phones.length > 0 && (
+                <Button variant="outline" size="sm" className="h-7 text-xs"
+                  onClick={() => setIsSaveListOpen(true)}>
+                  <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Inline list picker */}
-          {settings?.hasGithubToken && gistData?.lists && gistData.lists.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">اختار من قوائمك:</p>
-              <div className="flex flex-wrap gap-2">
-                {gistData.lists.map((list) => {
-                  const isLoaded = phonesText.trim() !== "" &&
-                    list.phones.every((p) => phonesText.includes(p));
-                  return (
-                    <button
-                      key={list.name}
-                      onClick={() => {
-                        if (phonesText.trim() && !isLoaded) {
-                          // Append phones not already present
-                          const existing = new Set(parsePhones());
-                          const toAdd = list.phones.filter((p) => !existing.has(p));
-                          setPhonesText((prev) =>
-                            prev.trimEnd() + (prev.trim() ? "\n" : "") + toAdd.join("\n")
-                          );
-                        } else if (!phonesText.trim()) {
-                          setPhonesText(list.phones.join("\n"));
-                        } else {
-                          // Already loaded — deselect (clear list phones)
-                          const listSet = new Set(list.phones);
-                          const remaining = parsePhones().filter((p) => !listSet.has(p));
-                          setPhonesText(remaining.join("\n"));
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
-                        isLoaded
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background text-foreground border-border hover:border-primary hover:text-primary"
-                      }`}
-                    >
-                      <Users className="h-3 w-3" />
-                      {list.name}
-                      <span className={`text-[10px] px-1 rounded-full ${
-                        isLoaded ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
-                      }`}>
-                        {list.phones.length}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+        <CardContent>
+          {phoneMode === "lists" ? (
+            <>
+              {!settings?.hasGithubToken ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p>فعّل GitHub Gist في الإعدادات لحفظ وتحميل القوائم</p>
+                  <a href="/settings" className="underline text-xs mt-1 inline-block">الإعدادات</a>
+                </div>
+              ) : !hasLists ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p>لا توجد قوائم محفوظة بعد</p>
+                  <button
+                    onClick={() => setPhoneMode("manual")}
+                    className="underline text-xs mt-1"
+                  >
+                    أضف أرقاماً يدوياً واحفظها كقائمة
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lists.map((list) => {
+                    const isSelected = selectedLists.has(list.name);
+                    return (
+                      <button
+                        key={list.name}
+                        onClick={() => toggleList(list)}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all text-sm ${
+                          isSelected
+                            ? "border-primary bg-primary/5 text-foreground"
+                            : "border-border hover:border-primary/40 hover:bg-muted/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                          }`}>
+                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                          </div>
+                          <span className="font-medium">{list.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {list.phones.length} رقم
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                  {selectedLists.size > 0 && (
+                    <p className="text-xs text-muted-foreground pt-1">
+                      <strong className="text-foreground">{phones.length}</strong> رقم فريد من{" "}
+                      <strong className="text-foreground">{selectedLists.size}</strong>{" "}
+                      {selectedLists.size === 1 ? "قائمة" : "قوائم"}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-2">
+              <Textarea
+                placeholder={"201012345678\n201123456789\n\nألصق الأرقام — رقم في كل سطر أو مفصولة بفاصلة"}
+                value={phonesText}
+                onChange={(e) => setPhonesText(e.target.value)}
+                rows={5}
+                className="font-mono text-sm resize-none"
+                dir="ltr"
+              />
+              {phones.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  <strong className="text-foreground">{phones.length}</strong> رقم صالح
+                </p>
+              )}
             </div>
-          )}
-
-          <Textarea
-            placeholder={"201012345678\n201123456789\n\nألصق الأرقام — رقم في كل سطر أو مفصولة بفاصلة"}
-            value={phonesText}
-            onChange={(e) => setPhonesText(e.target.value)}
-            rows={5}
-            className="font-mono text-sm resize-none"
-            dir="ltr"
-          />
-          {phones.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              <strong className="text-foreground">{phones.length}</strong> رقم صالح
-            </p>
           )}
         </CardContent>
       </Card>
 
-      {/* Step 2: Message */}
+      {/* ─── Step 2: Message ─── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -407,11 +428,10 @@ export default function Campaign() {
             className="resize-none rounded-b-none border-b-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
 
-          {/* Signature section */}
+          {/* Signature bar */}
           <div className={`border rounded-b-md transition-colors ${
             signatureEnabled ? "bg-muted/40 border-border" : "bg-background border-border opacity-60"
           }`}>
-            {/* Signature header bar */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b">
               <div className="flex items-center gap-2">
                 <PenLine className="h-3 w-3 text-muted-foreground" />
@@ -419,33 +439,23 @@ export default function Campaign() {
               </div>
               <div className="flex items-center gap-1">
                 {!isEditingSignature && (
-                  <button
-                    onClick={startEditSignature}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    تعديل
+                  <button onClick={startEditSignature}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted transition-colors">
+                    <Pencil className="h-3 w-3" />تعديل
                   </button>
                 )}
                 {isEditingSignature && (
                   <>
-                    <button
-                      onClick={saveSignature}
-                      className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 px-1.5 py-0.5 rounded hover:bg-green-50 transition-colors"
-                    >
-                      <Check className="h-3 w-3" />
-                      حفظ
+                    <button onClick={saveSignature}
+                      className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 px-1.5 py-0.5 rounded hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
+                      <Check className="h-3 w-3" />حفظ
                     </button>
-                    <button
-                      onClick={cancelEditSignature}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                      إلغاء
+                    <button onClick={cancelEditSignature}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted transition-colors">
+                      <X className="h-3 w-3" />إلغاء
                     </button>
                   </>
                 )}
-                {/* Toggle */}
                 <button
                   onClick={() => setSignatureEnabled((v) => !v)}
                   className={`relative ml-1 inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${
@@ -458,33 +468,26 @@ export default function Campaign() {
                 </button>
               </div>
             </div>
-
-            {/* Signature body */}
             <div className="px-3 py-2">
               {isEditingSignature ? (
                 <Textarea
                   value={sigDraft}
                   onChange={(e) => setSigDraft(e.target.value)}
-                  placeholder="اكتب توقيعك هنا...&#10;مثال: أحمد محمد | 01012345678 | شركة النجاح العقارية"
+                  placeholder={"اكتب توقيعك هنا...\nمثال: أحمد محمد | 01012345678 | شركة النجاح العقارية"}
                   rows={3}
                   className="resize-none text-xs border-dashed focus-visible:ring-1"
                   autoFocus
                 />
               ) : signature.trim() ? (
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                  {signature}
-                </p>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{signature}</p>
               ) : (
-                <button
-                  onClick={startEditSignature}
-                  className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors italic"
-                >
+                <button onClick={startEditSignature}
+                  className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors italic">
                   اضغط "تعديل" لإضافة توقيعك...
                 </button>
               )}
             </div>
           </div>
-
           {signatureEnabled && signature.trim() && (
             <p className="text-xs text-muted-foreground pt-2">
               سيُضاف التوقيع تلقائياً لكل رسالة
@@ -493,81 +496,69 @@ export default function Campaign() {
         </CardContent>
       </Card>
 
-      {/* Step 3: Media */}
+      {/* ─── Step 3: Media (large dropzone) ─── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <StepBadge n={3} />
-              صور وفيديوهات
-              <span className="text-xs font-normal text-muted-foreground">(اختياري)</span>
-            </CardTitle>
-            {/* Add buttons */}
-            <div className="flex gap-1.5">
-              {/* Image */}
-              <div className="flex rounded-md border overflow-hidden text-xs">
-                <button
-                  onClick={() => addUrlItem("image")}
-                  className="flex items-center gap-1 px-2 py-1.5 hover:bg-muted transition-colors border-r"
-                  title="أضف رابط صورة"
-                >
-                  <Link2 className="h-3 w-3" />
-                  <ImageIcon className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => triggerFileInput("image")}
-                  className="flex items-center gap-1 px-2 py-1.5 hover:bg-muted transition-colors"
-                  title="ارفع صورة من الجهاز"
-                >
-                  <Upload className="h-3 w-3" />
-                  <ImageIcon className="h-3 w-3" />
-                </button>
-              </div>
-              {/* Video */}
-              <div className="flex rounded-md border overflow-hidden text-xs">
-                <button
-                  onClick={() => addUrlItem("video")}
-                  className="flex items-center gap-1 px-2 py-1.5 hover:bg-muted transition-colors border-r"
-                  title="أضف رابط فيديو"
-                >
-                  <Link2 className="h-3 w-3" />
-                  <Video className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => triggerFileInput("video")}
-                  className="flex items-center gap-1 px-2 py-1.5 hover:bg-muted transition-colors"
-                  title="ارفع فيديو من الجهاز"
-                >
-                  <Upload className="h-3 w-3" />
-                  <Video className="h-3 w-3" />
-                </button>
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <StepBadge n={3} />
+            صور وفيديوهات
+            <span className="text-xs font-normal text-muted-foreground">(اختياري)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Dropzone */}
+          <div
+            ref={dropRef}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
+            className={`relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed cursor-pointer transition-all select-none
+              min-h-[180px] py-10
+              ${isDragOver
+                ? "border-primary bg-primary/5 scale-[1.01]"
+                : "border-border hover:border-primary/50 hover:bg-muted/30"
+              }`}
+          >
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${
+              isDragOver ? "bg-primary/10" : "bg-muted"
+            }`}>
+              <UploadCloud className={`h-7 w-7 transition-colors ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="font-semibold text-sm text-foreground">
+                {isDragOver ? "اتركها هنا!" : "اسحب الملفات هنا"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                أو اضغط لاختيار الصور والفيديوهات من جهازك
+              </p>
+              <div className="flex items-center justify-center gap-3 pt-1">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
+                  <ImageIcon className="h-3 w-3" /> JPG, PNG, WEBP
+                </span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
+                  <Video className="h-3 w-3" /> MP4, 3GP
+                </span>
               </div>
             </div>
           </div>
-          {/* Legend */}
-          <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Link2 className="h-3 w-3" /> رابط URL</span>
-            <span className="flex items-center gap-1"><Upload className="h-3 w-3" /> رفع من الجهاز</span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {mediaItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
-              اضغط على أي زرار بالأعلى لإضافة صورة أو فيديو
-            </p>
-          ) : (
-            mediaItems.map((item, idx) => (
-              <MediaRow
-                key={item.id}
-                item={item}
-                idx={idx}
-                onUrlChange={(url) => updateUrl(item.id, url)}
-                onRemove={() => removeItem(item.id)}
-              />
-            ))
+
+          {/* Uploaded files grid */}
+          {mediaItems.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {mediaItems.map((item, idx) => (
+                <MediaCard
+                  key={item.id}
+                  item={item}
+                  idx={idx}
+                  onRemove={() => removeItem(item.id)}
+                />
+              ))}
+            </div>
           )}
+
           {readyMedia.length > 0 && (
-            <p className="text-xs text-muted-foreground pt-1">
+            <p className="text-xs text-muted-foreground">
               سيتم إرسال{" "}
               <strong className="text-foreground">{1 + readyMedia.length} رسالة</strong>{" "}
               لكل رقم (نص + {readyMedia.length} مرفق)
@@ -576,7 +567,7 @@ export default function Campaign() {
         </CardContent>
       </Card>
 
-      {/* Send */}
+      {/* ─── Send button ─── */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">
           {phones.length > 0 && message && (
@@ -599,15 +590,19 @@ export default function Campaign() {
         </Button>
       </div>
 
-      {/* Results */}
+      {/* ─── Results ─── */}
       {sendResults && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-3">
               نتائج الإرسال
-              <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">{successCount} نجح</Badge>
+              <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
+                {successCount} نجح
+              </Badge>
               {failCount > 0 && (
-                <Badge variant="outline" className="text-red-700 border-red-200 bg-red-50">{failCount} فشل</Badge>
+                <Badge variant="outline" className="text-red-700 border-red-200 bg-red-50 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800">
+                  {failCount} فشل
+                </Badge>
               )}
             </CardTitle>
           </CardHeader>
@@ -629,7 +624,7 @@ export default function Campaign() {
         </Card>
       )}
 
-      {/* Confirm Dialog */}
+      {/* ─── Confirm Dialog ─── */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>تأكيد الإرسال</DialogTitle></DialogHeader>
@@ -645,14 +640,14 @@ export default function Campaign() {
               <div className="flex flex-wrap gap-2">
                 {readyMedia.map((m, i) => (
                   <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${
-                    m.type === "image" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                    m.type === "image" ? "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300"
                   }`}>
                     {m.type === "image" ? "📷" : "🎬"} {m.type === "image" ? `صورة ${i + 1}` : `فيديو ${i + 1}`}
                   </span>
                 ))}
               </div>
             )}
-            <p className="text-amber-600 text-xs">
+            <p className="text-amber-600 dark:text-amber-400 text-xs">
               ملحوظة: رسائل التسويق لعملاء جدد تحتاج template معتمد من Meta.
             </p>
           </div>
@@ -663,7 +658,7 @@ export default function Campaign() {
         </DialogContent>
       </Dialog>
 
-      {/* Save List */}
+      {/* ─── Save List Dialog ─── */}
       <Dialog open={isSaveListOpen} onOpenChange={setIsSaveListOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>حفظ كقائمة</DialogTitle></DialogHeader>
@@ -684,37 +679,11 @@ export default function Campaign() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Load List */}
-      <Dialog open={isLoadListOpen} onOpenChange={setIsLoadListOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>تحميل قائمة</DialogTitle></DialogHeader>
-          {!gistData?.lists?.length ? (
-            <p className="text-sm text-muted-foreground py-4">لا توجد قوائم محفوظة.</p>
-          ) : (
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {gistData.lists.map((list) => (
-                <button key={list.name} onClick={() => loadList(list)}
-                  className="w-full text-right flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                  <div>
-                    <p className="font-medium text-sm">{list.name}</p>
-                    <p className="text-xs text-muted-foreground">{list.phones.length} رقم</p>
-                  </div>
-                  <CloudDownload className="h-4 w-4 text-muted-foreground shrink-0" />
-                </button>
-              ))}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsLoadListOpen(false)}>إغلاق</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
-// ── Small helpers ──────────────────────────────────────────────────────────────
+// ── Small helpers ───────────────────────────────────────────────────────────────
 
 function StepBadge({ n }: { n: number }) {
   return (
@@ -724,92 +693,64 @@ function StepBadge({ n }: { n: number }) {
   );
 }
 
-function MediaRow({
-  item, idx, onUrlChange, onRemove,
+function MediaCard({
+  item, idx, onRemove,
 }: {
   item: MediaItem;
   idx: number;
-  onUrlChange: (url: string) => void;
   onRemove: () => void;
 }) {
-  const typeLabel = item.type === "image" ? "صورة" : "فيديو";
-  const colorClass = item.type === "image"
-    ? "bg-blue-100 text-blue-700"
-    : "bg-purple-100 text-purple-700";
-
   return (
-    <div className="flex items-start gap-2">
-      {/* Label */}
-      <div className="flex items-center gap-1 shrink-0 mt-1.5">
-        <GripVertical className="h-4 w-4 text-muted-foreground/30" />
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${colorClass}`}>
-          {item.type === "image" ? <ImageIcon className="h-3 w-3" /> : <Video className="h-3 w-3" />}
-          {typeLabel} {idx + 1}
-        </span>
+    <div className="relative group rounded-lg overflow-hidden border bg-muted aspect-square">
+      {/* Preview */}
+      {item.type === "image" ? (
+        <img src={item.preview} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <video src={item.preview} className="w-full h-full object-cover" muted />
+      )}
+
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <button
+          onClick={onRemove}
+          className="bg-white/90 hover:bg-white text-red-600 rounded-full p-1.5 transition-colors"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        {item.source === "device" ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              {/* Thumbnail */}
-              {item.preview && item.type === "image" && (
-                <img
-                  src={item.preview}
-                  alt=""
-                  className="h-10 w-10 object-cover rounded border shrink-0"
-                />
-              )}
-              {item.preview && item.type === "video" && (
-                <video
-                  src={item.preview}
-                  className="h-10 w-10 object-cover rounded border shrink-0"
-                />
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-medium truncate">{item.file?.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {item.file ? (item.file.size / 1024 / 1024).toFixed(1) + " MB" : ""}
-                </p>
-              </div>
-            </div>
-            {/* Upload status */}
-            {item.uploading && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                جاري الرفع على WhatsApp...
-              </div>
-            )}
-            {item.waMediaId && !item.uploading && (
-              <div className="flex items-center gap-1 text-xs text-green-600">
-                <CheckCircle2 className="h-3 w-3" />
-                تم الرفع بنجاح
-              </div>
-            )}
-            {item.uploadError && (
-              <div className="flex items-center gap-1 text-xs text-red-500">
-                <XCircle className="h-3 w-3" />
-                {item.uploadError}
-              </div>
-            )}
-          </div>
-        ) : (
-          <Input
-            placeholder={item.type === "image" ? "https://example.com/photo.jpg" : "https://example.com/video.mp4"}
-            value={item.url}
-            onChange={(e) => onUrlChange(e.target.value)}
-            className="font-mono text-xs h-8"
-            dir="ltr"
-          />
+      {/* Status badge */}
+      <div className="absolute top-1.5 left-1.5">
+        {item.uploading && (
+          <span className="flex items-center gap-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+            <Loader2 className="h-2.5 w-2.5 animate-spin" />رفع...
+          </span>
+        )}
+        {item.waMediaId && !item.uploading && (
+          <span className="flex items-center gap-1 bg-green-500/90 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+            <CheckCircle2 className="h-2.5 w-2.5" />جاهز
+          </span>
+        )}
+        {item.uploadError && (
+          <span className="flex items-center gap-1 bg-red-500/90 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+            <XCircle className="h-2.5 w-2.5" />فشل
+          </span>
         )}
       </div>
 
-      {/* Remove */}
-      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
-        onClick={onRemove}>
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
+      {/* Type badge */}
+      <div className="absolute bottom-1.5 right-1.5">
+        <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+          item.type === "image"
+            ? "bg-blue-500/90 text-white"
+            : "bg-purple-500/90 text-white"
+        }`}>
+          {item.type === "image"
+            ? <ImageIcon className="h-2.5 w-2.5" />
+            : <Video className="h-2.5 w-2.5" />}
+          {idx + 1}
+        </span>
+      </div>
     </div>
   );
 }

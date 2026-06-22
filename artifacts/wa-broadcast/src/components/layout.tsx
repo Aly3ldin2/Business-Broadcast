@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Radio } from "lucide-react";
+import { Send, Settings, Users, Menu, Radio, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 
@@ -13,6 +13,21 @@ const navigation = [
   { name: "Lists", href: "/lists", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
+
+function useTheme() {
+  const [isDark, setIsDark] = useState(() => {
+    const stored = localStorage.getItem("wa_theme");
+    if (stored) return stored === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    localStorage.setItem("wa_theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  return { isDark, toggle: () => setIsDark((v) => !v) };
+}
 
 function SiteLogo() {
   return (
@@ -29,8 +44,22 @@ function SiteLogo() {
   );
 }
 
+function ThemeToggle({ isDark, onToggle }: { isDark: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={isDark ? "تفعيل الوضع الفاتح" : "تفعيل الوضع المظلم"}
+      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+    >
+      {isDark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+      {isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+    </button>
+  );
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { isDark, toggle } = useTheme();
 
   const NavLinks = () => (
     <nav className="flex flex-1 flex-col gap-0.5 py-3 px-2">
@@ -70,9 +99,19 @@ export function Layout({ children }: LayoutProps) {
                 <SiteLogo />
               </div>
               <NavLinks />
+              <div className="p-2 border-t">
+                <ThemeToggle isDark={isDark} onToggle={toggle} />
+              </div>
             </SheetContent>
           </Sheet>
           <SiteLogo />
+          <div className="flex-1" />
+          <button
+            onClick={toggle}
+            className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
         </div>
 
         {/* Desktop sidebar */}
@@ -83,8 +122,9 @@ export function Layout({ children }: LayoutProps) {
           <div className="flex flex-1 flex-col overflow-y-auto">
             <NavLinks />
           </div>
-          <div className="p-4 border-t">
-            <p className="text-xs text-muted-foreground leading-relaxed">
+          <div className="p-2 border-t space-y-1">
+            <ThemeToggle isDark={isDark} onToggle={toggle} />
+            <p className="text-xs text-muted-foreground px-3 pb-1">
               Free & open source
             </p>
           </div>
