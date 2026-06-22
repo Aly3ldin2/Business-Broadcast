@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "WhatsApp Broadcast Manager"
+title = "WhatsApp Broadcast"
 version = "1.0.0"
 id = "artifacts/wa-broadcast"
 router = "path"
