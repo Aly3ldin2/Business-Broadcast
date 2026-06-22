@@ -7,14 +7,9 @@
  */
 
 export interface Settings {
+  /** true if WhatsApp (Baileys) is connected */
   isConfigured: boolean;
   hasGithubToken: boolean;
-  /** @nullable */
-  phoneNumberId?: string | null;
-  /** @nullable */
-  accessToken?: string | null;
-  /** @nullable */
-  businessAccountId?: string | null;
   /** @nullable */
   gistId?: string | null;
 }

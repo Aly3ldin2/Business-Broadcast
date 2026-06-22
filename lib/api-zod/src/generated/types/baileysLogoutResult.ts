@@ -6,9 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ConnectionTest {
+export interface BaileysLogoutResult {
   success: boolean;
-  message: string;
-  /** @nullable */
-  phoneNumber?: string | null;
 }

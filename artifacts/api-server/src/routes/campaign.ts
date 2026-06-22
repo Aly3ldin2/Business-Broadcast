@@ -1,34 +1,9 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { settingsTable } from "@workspace/db";
+import { baileysService } from "../services/baileys";
 import { SendCampaignBody } from "@workspace/api-zod";
+import { mediaStore } from "./media";
 
 const router = Router();
-
-async function sendWhatsApp(
-  phoneNumberId: string,
-  accessToken: string,
-  phone: string,
-  body: Record<string, unknown>
-): Promise<{ ok: boolean; error?: string }> {
-  const response = await fetch(
-    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    }
-  );
-  const data = await response.json() as {
-    messages?: Array<{ id: string }>;
-    error?: { message?: string };
-  };
-  if (response.ok && data.messages?.length) return { ok: true };
-  return { ok: false, error: data.error?.message ?? `HTTP ${response.status}` };
-}
 
 router.post("/send", async (req, res) => {
   const parsed = SendCampaignBody.safeParse(req.body);
@@ -36,9 +11,11 @@ router.post("/send", async (req, res) => {
     return res.status(400).json({ error: "Invalid body" });
   }
 
-  const [settings] = await db.select().from(settingsTable).limit(1);
-  if (!settings?.phoneNumberId || !settings?.accessToken) {
-    return res.status(400).json({ error: "WhatsApp API not configured. Go to Settings first." });
+  const status = baileysService.getStatus();
+  if (!status.connected) {
+    return res.status(400).json({
+      error: "WhatsApp غير متصل. افتح الإعدادات وامسح QR Code أولاً.",
+    });
   }
 
   const { phones, message, mediaItems } = parsed.data;
@@ -49,56 +26,52 @@ router.post("/send", async (req, res) => {
   for (const rawPhone of phones) {
     const phone = rawPhone.replace(/[\s+\-()]/g, "");
     if (!phone || phone.length < 10) {
-      results.push({ phone: rawPhone, success: false, error: "Invalid phone number" });
+      results.push({ phone: rawPhone, success: false, error: "رقم هاتف غير صالح" });
       failed++;
       continue;
     }
 
-    const errors: string[] = [];
+    try {
+      // 1. Send text message
+      await baileysService.sendText(phone, message);
 
-    // 1. Send text message
-    const textResult = await sendWhatsApp(
-      settings.phoneNumberId,
-      settings.accessToken,
-      phone,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: { body: message, preview_url: true },
-      }
-    );
-    if (!textResult.ok) errors.push(textResult.error ?? "text failed");
+      // 2. Send each media item
+      if (mediaItems && mediaItems.length > 0) {
+        for (const item of mediaItems) {
+          await new Promise((r) => setTimeout(r, 300));
 
-    // 2. Send each media item (by ID or URL)
-    if (mediaItems && mediaItems.length > 0) {
-      for (const item of mediaItems) {
-        await new Promise((r) => setTimeout(r, 150));
-        const mediaPayload = item.id ? { id: item.id } : { link: item.url };
-        const mediaResult = await sendWhatsApp(
-          settings.phoneNumberId,
-          settings.accessToken,
-          phone,
-          {
-            messaging_product: "whatsapp",
-            to: phone,
-            type: item.type,
-            [item.type]: mediaPayload,
+          if (item.id) {
+            const stored = mediaStore.get(item.id);
+            if (stored) {
+              if (item.type === "image") {
+                await baileysService.sendImage(phone, stored.buffer, stored.mimetype);
+              } else if (item.type === "video") {
+                await baileysService.sendVideo(phone, stored.buffer, stored.mimetype);
+              }
+            }
+          } else if (item.url) {
+            const resp = await fetch(item.url);
+            const buf = Buffer.from(await resp.arrayBuffer());
+            const mime = resp.headers.get("content-type") ?? "image/jpeg";
+            if (item.type === "image") {
+              await baileysService.sendImage(phone, buf, mime);
+            } else {
+              await baileysService.sendVideo(phone, buf, mime);
+            }
           }
-        );
-        if (!mediaResult.ok) errors.push(mediaResult.error ?? `${item.type} failed`);
+        }
       }
-    }
 
-    if (errors.length === 0) {
       results.push({ phone, success: true, error: null });
       sent++;
-    } else {
-      results.push({ phone, success: false, error: errors.join("; ") });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "فشل الإرسال";
+      results.push({ phone, success: false, error: msg });
       failed++;
     }
 
-    await new Promise((r) => setTimeout(r, 100));
+    // Small delay between contacts to avoid rate limiting
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   return res.json({ total: phones.length, sent, failed, results });

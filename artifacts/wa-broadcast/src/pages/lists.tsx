@@ -8,10 +8,11 @@ import {
   useGetSettings,
   getLoadPhonesFromGistQueryKey,
 } from "@workspace/api-client-react";
+import type { Contact } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -36,15 +37,15 @@ import {
   Loader2,
   Github,
   Users,
-  AlertTriangle,
   Hash,
   X,
+  User,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface PhoneList {
   name: string;
-  phones: string[];
+  phones: Contact[];
 }
 
 export default function Lists() {
@@ -65,8 +66,9 @@ export default function Lists() {
   const [deleteListName, setDeleteListName] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
-  const [formPhoneList, setFormPhoneList] = useState<string[]>([]);
+  const [formContacts, setFormContacts] = useState<Contact[]>([]);
   const [formPhoneInput, setFormPhoneInput] = useState("");
+  const [formNameInput, setFormNameInput] = useState("");
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState("");
   const [country, setCountry] = useState<Country>(() =>
@@ -78,30 +80,36 @@ export default function Lists() {
     localStorage.setItem("wa_country", c.iso2);
   }
 
-  function addFormPhone() {
+  function addFormContact() {
     const raw = formPhoneInput.replace(/\D/g, "");
     if (raw.length < 7) return;
     const dialDigits = country.dialCode.replace("+", "");
     const full = raw.startsWith(dialDigits)
       ? raw
       : dialDigits + (raw.startsWith("0") ? raw.slice(1) : raw);
-    if (!formPhoneList.includes(full)) {
-      setFormPhoneList((prev) => [...prev, full]);
+    if (!formContacts.find((c) => c.number === full)) {
+      setFormContacts((prev) => [
+        ...prev,
+        { number: full, name: formNameInput.trim() || null },
+      ]);
     }
     setFormPhoneInput("");
+    setFormNameInput("");
   }
 
-  function removeFormPhone(num: string) {
-    setFormPhoneList((prev) => prev.filter((p) => p !== num));
+  function removeFormContact(num: string) {
+    setFormContacts((prev) => prev.filter((c) => c.number !== num));
   }
 
   function addBulk() {
     const nums = parseRawNumbers(bulkText, country.dialCode);
     if (nums.length === 0) return;
-    setFormPhoneList((prev) => {
-      const set = new Set(prev);
-      nums.forEach((n) => set.add(n));
-      return Array.from(set);
+    setFormContacts((prev) => {
+      const existing = new Set(prev.map((c) => c.number));
+      const newOnes: Contact[] = nums
+        .filter((n) => !existing.has(n))
+        .map((n) => ({ number: n, name: null }));
+      return [...prev, ...newOnes];
     });
     setBulkText("");
     setShowBulkPaste(false);
@@ -109,8 +117,9 @@ export default function Lists() {
 
   function openCreate() {
     setFormName("");
-    setFormPhoneList([]);
+    setFormContacts([]);
     setFormPhoneInput("");
+    setFormNameInput("");
     setShowBulkPaste(false);
     setBulkText("");
     setIsCreateOpen(true);
@@ -118,8 +127,9 @@ export default function Lists() {
 
   function openEdit(list: PhoneList) {
     setFormName(list.name);
-    setFormPhoneList(list.phones);
+    setFormContacts(list.phones);
     setFormPhoneInput("");
+    setFormNameInput("");
     setShowBulkPaste(false);
     setBulkText("");
     setEditList(list);
@@ -127,20 +137,19 @@ export default function Lists() {
 
   async function handleSave() {
     if (!formName.trim()) return;
-    const phones = formPhoneList;
     const existing: PhoneList[] = gistData?.lists ?? [];
 
     let newLists: PhoneList[];
     if (editList) {
       newLists = existing.map((l) =>
-        l.name === editList.name ? { name: formName.trim(), phones } : l
+        l.name === editList.name ? { name: formName.trim(), phones: formContacts } : l
       );
     } else {
       if (existing.some((l) => l.name === formName.trim())) {
         toast({ title: "يوجد قائمة بنفس الاسم", variant: "destructive" });
         return;
       }
-      newLists = [...existing, { name: formName.trim(), phones }];
+      newLists = [...existing, { name: formName.trim(), phones: formContacts }];
     }
 
     try {
@@ -151,10 +160,10 @@ export default function Lists() {
       toast({
         title: editList
           ? `تم تحديث "${formName.trim()}"`
-          : `تم إنشاء قائمة "${formName.trim()}" — ${phones.length} رقم`,
+          : `تم إنشاء قائمة "${formName.trim()}" — ${formContacts.length} جهة اتصال`,
       });
-    } catch (e: any) {
-      toast({ title: "فشل الحفظ", description: e?.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "فشل الحفظ", description: (e as Error)?.message, variant: "destructive" });
     }
   }
 
@@ -165,8 +174,8 @@ export default function Lists() {
       queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
       setDeleteListName(null);
       toast({ title: `تم حذف "${name}"` });
-    } catch (e: any) {
-      toast({ title: "فشل الحذف", description: e?.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "فشل الحذف", description: (e as Error)?.message, variant: "destructive" });
     }
   }
 
@@ -176,9 +185,9 @@ export default function Lists() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">قوائم الأرقام</h1>
+          <h1 className="text-3xl font-bold tracking-tight">قوائم جهات الاتصال</h1>
           <p className="text-muted-foreground mt-1">
-            أنشئ قوائم لأرقام هاتفية وحفظها على GitHub Gist
+            أنشئ قوائم لجهات الاتصال مع أسمائهم وأرقامهم، محفوظة على GitHub Gist
           </p>
         </div>
         {settings?.hasGithubToken && (
@@ -195,10 +204,8 @@ export default function Lists() {
           <div>
             لحفظ القوائم محتاج تضيف{" "}
             <strong>GitHub Personal Access Token</strong> في{" "}
-            <a href="/settings" className="underline font-medium">
-              الإعدادات
-            </a>
-            . مجاني تماماً.
+            <a href="/settings" className="underline font-medium">الإعدادات</a>.
+            مجاني تماماً.
           </div>
         </div>
       )}
@@ -226,28 +233,34 @@ export default function Lists() {
           <Card key={list.name} className="relative group">
             <CardContent className="pt-5 pb-4">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold text-base truncate">{list.name}</p>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {list.phones.length} رقم
+                    {list.phones.length} جهة اتصال
                   </p>
                   {list.phones.length > 0 && (
-                    <p
-                      className="text-xs text-muted-foreground mt-2 font-mono truncate"
-                      dir="ltr"
-                    >
-                      {list.phones.slice(0, 3).join(", ")}
-                      {list.phones.length > 3 ? ` +${list.phones.length - 3}` : ""}
-                    </p>
+                    <div className="mt-2 space-y-0.5">
+                      {list.phones.slice(0, 3).map((c) => (
+                        <p key={c.number} className="text-xs text-muted-foreground font-mono truncate" dir="ltr">
+                          {c.name ? (
+                            <span>
+                              <span className="font-sans not-italic text-foreground/70">{c.name}</span>
+                              {" — "}
+                            </span>
+                          ) : null}
+                          {c.number}
+                        </p>
+                      ))}
+                      {list.phones.length > 3 && (
+                        <p className="text-xs text-muted-foreground">
+                          +{list.phones.length - 3} أكثر
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => openEdit(list)}
-                  >
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(list)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
@@ -269,13 +282,10 @@ export default function Lists() {
       <Dialog
         open={isCreateOpen || editList !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setIsCreateOpen(false);
-            setEditList(null);
-          }
+          if (!open) { setIsCreateOpen(false); setEditList(null); }
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editList ? `تعديل "${editList.name}"` : "قائمة جديدة"}
@@ -294,30 +304,45 @@ export default function Lists() {
             </div>
 
             <div className="space-y-3">
-              <Label>الأرقام</Label>
+              <Label>جهات الاتصال</Label>
 
-              {/* Input row */}
-              <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background shadow-sm">
-                <div className="border-r">
-                  <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+              {/* Two-field input row: phone + name */}
+              <div className="space-y-2">
+                <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background shadow-sm">
+                  <div className="border-r">
+                    <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                  </div>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={formPhoneInput}
+                    onChange={(e) => setFormPhoneInput(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFormContact(); } }}
+                    placeholder={country.sample}
+                    dir="ltr"
+                    className="flex-1 px-3 py-2 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/50 min-w-0"
+                  />
                 </div>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  value={formPhoneInput}
-                  onChange={(e) => setFormPhoneInput(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFormPhone(); } }}
-                  placeholder={country.sample}
-                  dir="ltr"
-                  className="flex-1 px-3 py-2 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/50 min-w-0"
-                />
+                <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background shadow-sm">
+                  <div className="flex items-center px-3 border-r">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <input
+                    type="text"
+                    value={formNameInput}
+                    onChange={(e) => setFormNameInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFormContact(); } }}
+                    placeholder="الاسم (اختياري)"
+                    className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground/50 min-w-0"
+                  />
+                </div>
               </div>
 
-              {/* Buttons row */}
+              {/* Action buttons */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={addFormPhone}
+                  onClick={addFormContact}
                   disabled={formPhoneInput.replace(/\D/g, "").length < 7}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
                 >
@@ -338,7 +363,7 @@ export default function Lists() {
               {/* Bulk paste panel */}
               {showBulkPaste && (
                 <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
-                  <p className="text-xs text-muted-foreground">الصق أرقاماً (كل رقم في سطر أو مفصولة بفواصل)</p>
+                  <p className="text-xs text-muted-foreground">الصق أرقاماً (كل رقم في سطر أو مفصولة بفواصل) — بدون أسماء</p>
                   <textarea
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
@@ -373,37 +398,39 @@ export default function Lists() {
                 </div>
               )}
 
-              {/* Chips */}
-              {formPhoneList.length > 0 && (
+              {/* Contacts list */}
+              {formContacts.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">
-                      الأرقام المضافة ({formPhoneList.length})
+                      جهات الاتصال المضافة ({formContacts.length})
                     </p>
                     <button
                       type="button"
-                      onClick={() => setFormPhoneList([])}
+                      onClick={() => setFormContacts([])}
                       className="text-xs text-destructive hover:underline"
                     >
                       مسح الكل
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-                    {formPhoneList.map((num) => (
-                      <span
-                        key={num}
-                        className="flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full bg-muted border text-xs font-mono"
-                        dir="ltr"
+                  <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                    {formContacts.map((contact) => (
+                      <div
+                        key={contact.number}
+                        className="flex items-center gap-2 pl-1 pr-2 py-1.5 rounded-lg bg-muted border text-xs"
                       >
                         <button
                           type="button"
-                          onClick={() => removeFormPhone(num)}
-                          className="w-3.5 h-3.5 rounded-full bg-muted-foreground/20 hover:bg-destructive hover:text-white flex items-center justify-center transition-colors shrink-0"
+                          onClick={() => removeFormContact(contact.number)}
+                          className="w-4 h-4 rounded-full bg-muted-foreground/20 hover:bg-destructive hover:text-white flex items-center justify-center transition-colors shrink-0"
                         >
-                          <X className="h-2 w-2" />
+                          <X className="h-2.5 w-2.5" />
                         </button>
-                        {num}
-                      </span>
+                        {contact.name && (
+                          <span className="text-foreground/80 font-medium">{contact.name}</span>
+                        )}
+                        <span className="font-mono text-muted-foreground" dir="ltr">{contact.number}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -411,22 +438,11 @@ export default function Lists() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreateOpen(false);
-                setEditList(null);
-              }}
-            >
+            <Button variant="outline" onClick={() => { setIsCreateOpen(false); setEditList(null); }}>
               إلغاء
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!formName.trim() || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
+            <Button onClick={handleSave} disabled={!formName.trim() || saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {editList ? "حفظ التعديلات" : "إنشاء القائمة"}
             </Button>
           </DialogFooter>

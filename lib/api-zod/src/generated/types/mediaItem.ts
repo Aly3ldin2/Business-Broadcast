@@ -14,7 +14,7 @@ export interface MediaItem {
      */
   url?: string | null;
   /**
-     * WhatsApp media ID (from upload endpoint)
+     * Local media file ID (from upload endpoint)
      * @nullable
      */
   id?: string | null;

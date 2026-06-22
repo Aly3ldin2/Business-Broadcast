@@ -24,7 +24,7 @@ export const SendCampaignBody = zod.object({
   "message": zod.string().describe('The message text'),
   "mediaItems": zod.array(zod.object({
   "url": zod.string().nullish().describe('Public URL for the media'),
-  "id": zod.string().nullish().describe('WhatsApp media ID (from upload endpoint)'),
+  "id": zod.string().nullish().describe('Local media file ID (from upload endpoint)'),
   "type": zod.enum(['image', 'video'])
 })).optional().describe('Optional list of images\/videos to send')
 })
@@ -47,7 +47,10 @@ export const SendCampaignResponse = zod.object({
 export const LoadPhonesFromGistResponse = zod.object({
   "lists": zod.array(zod.object({
   "name": zod.string(),
-  "phones": zod.array(zod.string())
+  "phones": zod.array(zod.object({
+  "number": zod.string().describe('Phone number in international format without \"+\" (e.g. 201012345678)'),
+  "name": zod.string().nullish().describe('Optional contact name')
+}))
 }))
 })
 
@@ -58,7 +61,10 @@ export const LoadPhonesFromGistResponse = zod.object({
 export const SavePhonesToGistBody = zod.object({
   "lists": zod.array(zod.object({
   "name": zod.string(),
-  "phones": zod.array(zod.string())
+  "phones": zod.array(zod.object({
+  "number": zod.string().describe('Phone number in international format without \"+\" (e.g. 201012345678)'),
+  "name": zod.string().nullish().describe('Optional contact name')
+}))
 }))
 })
 
@@ -73,11 +79,8 @@ export const SavePhonesToGistResponse = zod.object({
  * @summary Get API settings
  */
 export const GetSettingsResponse = zod.object({
-  "isConfigured": zod.boolean(),
+  "isConfigured": zod.boolean().describe('true if WhatsApp (Baileys) is connected'),
   "hasGithubToken": zod.boolean(),
-  "phoneNumberId": zod.string().nullish(),
-  "accessToken": zod.string().nullish(),
-  "businessAccountId": zod.string().nullish(),
   "gistId": zod.string().nullish()
 })
 
@@ -86,30 +89,31 @@ export const GetSettingsResponse = zod.object({
  * @summary Save API settings
  */
 export const SaveSettingsBody = zod.object({
-  "phoneNumberId": zod.string().optional(),
-  "accessToken": zod.string().optional(),
-  "businessAccountId": zod.string().optional(),
   "githubToken": zod.string().optional(),
   "gistId": zod.string().optional()
 })
 
 export const SaveSettingsResponse = zod.object({
-  "isConfigured": zod.boolean(),
+  "isConfigured": zod.boolean().describe('true if WhatsApp (Baileys) is connected'),
   "hasGithubToken": zod.boolean(),
-  "phoneNumberId": zod.string().nullish(),
-  "accessToken": zod.string().nullish(),
-  "businessAccountId": zod.string().nullish(),
   "gistId": zod.string().nullish()
 })
 
 
 /**
- * @summary Test WhatsApp API connection
+ * @summary Get Baileys WhatsApp connection status and QR code
  */
-export const TestConnectionResponse = zod.object({
-  "success": zod.boolean(),
-  "message": zod.string(),
-  "phoneNumber": zod.string().nullish()
+export const GetBaileysStatusResponse = zod.object({
+  "connected": zod.boolean(),
+  "qr": zod.string().nullish().describe('Base64 QR code data URL to display to the user')
+})
+
+
+/**
+ * @summary Disconnect and clear WhatsApp session
+ */
+export const BaileysLogoutResponse = zod.object({
+  "success": zod.boolean()
 })
 
 

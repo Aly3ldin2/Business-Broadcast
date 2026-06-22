@@ -1,60 +1,37 @@
 import { Router } from "express";
 import multer from "multer";
-import { db } from "@workspace/db";
-import { settingsTable } from "@workspace/db";
+import { randomUUID } from "crypto";
 
 const router = Router();
 
+// In-memory store of uploaded media, keyed by UUID
+export const mediaStore = new Map<string, { buffer: Buffer; mimetype: string }>();
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 16 * 1024 * 1024 }, // 16MB max
+  limits: { fileSize: 64 * 1024 * 1024 }, // 64MB max
   fileFilter: (_req, file, cb) => {
     const allowed = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/3gpp"];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Unsupported file type"));
+    else cb(new Error("نوع الملف غير مدعوم"));
   },
 });
 
-router.post("/upload", upload.single("file"), async (req, res) => {
+router.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: "No file provided" });
+    return res.status(400).json({ error: "لم يتم إرسال ملف" });
   }
 
-  const [settings] = await db.select().from(settingsTable).limit(1);
-  if (!settings?.phoneNumberId || !settings?.accessToken) {
-    return res.status(400).json({ error: "WhatsApp API not configured. Go to Settings first." });
-  }
+  const id = randomUUID();
+  mediaStore.set(id, {
+    buffer: req.file.buffer,
+    mimetype: req.file.mimetype,
+  });
 
-  try {
-    const formData = new FormData();
-    formData.append("messaging_product", "whatsapp");
-    formData.append("type", req.file.mimetype);
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(req.file.buffer)], { type: req.file.mimetype }),
-      req.file.originalname
-    );
+  // Auto-cleanup after 2 hours
+  setTimeout(() => mediaStore.delete(id), 2 * 60 * 60 * 1000);
 
-    const response = await fetch(
-      `https://graph.facebook.com/v19.0/${settings.phoneNumberId}/media`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${settings.accessToken}` },
-        body: formData,
-      }
-    );
-
-    const data = await response.json() as { id?: string; error?: { message?: string } };
-
-    if (!response.ok || !data.id) {
-      return res.status(400).json({ error: data.error?.message ?? "WhatsApp upload failed" });
-    }
-
-    return res.json({ id: data.id });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Network error";
-    return res.status(500).json({ error: msg });
-  }
+  return res.json({ id });
 });
 
 export default router;

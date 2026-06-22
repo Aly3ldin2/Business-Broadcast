@@ -7,6 +7,6 @@
  */
 
 export interface MediaUploadResult {
-  /** WhatsApp media ID */
+  /** Local media file ID */
   id: string;
 }

@@ -7,9 +7,6 @@
  */
 
 export interface SettingsInput {
-  phoneNumberId?: string;
-  accessToken?: string;
-  businessAccountId?: string;
   githubToken?: string;
   gistId?: string;
 }

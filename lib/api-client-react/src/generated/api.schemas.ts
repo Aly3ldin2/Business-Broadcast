@@ -9,6 +9,16 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface Contact {
+  /** Phone number in international format without "+" (e.g. 201012345678) */
+  number: string;
+  /**
+     * Optional contact name
+     * @nullable
+     */
+  name?: string | null;
+}
+
 export type MediaItemType = typeof MediaItemType[keyof typeof MediaItemType];
 
 
@@ -24,7 +34,7 @@ export interface MediaItem {
      */
   url?: string | null;
   /**
-     * WhatsApp media ID (from upload endpoint)
+     * Local media file ID (from upload endpoint)
      * @nullable
      */
   id?: string | null;
@@ -32,7 +42,7 @@ export interface MediaItem {
 }
 
 export interface MediaUploadResult {
-  /** WhatsApp media ID */
+  /** Local media file ID */
   id: string;
 }
 
@@ -61,7 +71,7 @@ export interface CampaignResult {
 
 export interface PhoneList {
   name: string;
-  phones: string[];
+  phones: Contact[];
 }
 
 export interface GistData {
@@ -75,30 +85,28 @@ export interface GistSaveResult {
 }
 
 export interface Settings {
+  /** true if WhatsApp (Baileys) is connected */
   isConfigured: boolean;
   hasGithubToken: boolean;
-  /** @nullable */
-  phoneNumberId?: string | null;
-  /** @nullable */
-  accessToken?: string | null;
-  /** @nullable */
-  businessAccountId?: string | null;
   /** @nullable */
   gistId?: string | null;
 }
 
 export interface SettingsInput {
-  phoneNumberId?: string;
-  accessToken?: string;
-  businessAccountId?: string;
   githubToken?: string;
   gistId?: string;
 }
 
-export interface ConnectionTest {
+export interface BaileysStatus {
+  connected: boolean;
+  /**
+     * Base64 QR code data URL to display to the user
+     * @nullable
+     */
+  qr?: string | null;
+}
+
+export interface BaileysLogoutResult {
   success: boolean;
-  message: string;
-  /** @nullable */
-  phoneNumber?: string | null;
 }
 

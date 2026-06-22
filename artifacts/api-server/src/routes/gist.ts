@@ -13,13 +13,37 @@ async function getSettings() {
   return s ?? null;
 }
 
+type Contact = { number: string; name?: string | null };
+
+// Normalize phones: handles both old string[] and new Contact[] formats
+function normalizePhones(phones: unknown[]): Contact[] {
+  return phones.map((p) => {
+    if (typeof p === "string") return { number: p, name: null };
+    const c = p as { number?: string; name?: string | null };
+    return { number: c.number ?? "", name: c.name ?? null };
+  });
+}
+
+function normalizeGistData(raw: unknown): { lists: { name: string; phones: Contact[] }[] } {
+  const data = raw as { lists?: unknown[] };
+  if (!data?.lists || !Array.isArray(data.lists)) return { lists: [] };
+  return {
+    lists: data.lists.map((l: unknown) => {
+      const list = l as { name?: string; phones?: unknown[] };
+      return {
+        name: list.name ?? "",
+        phones: normalizePhones(Array.isArray(list.phones) ? list.phones : []),
+      };
+    }),
+  };
+}
+
 router.get("/phones", async (_req, res) => {
   const settings = await getSettings();
   if (!settings?.githubToken) {
-    return res.status(400).json({ error: "GitHub token not configured. Add it in Settings." });
+    return res.status(400).json({ error: "GitHub token غير مضبوط. أضفه في الإعدادات." });
   }
 
-  // If no gist yet, return empty
   if (!settings.gistId) {
     return res.json({ lists: [] });
   }
@@ -34,7 +58,7 @@ router.get("/phones", async (_req, res) => {
     });
 
     if (!response.ok) {
-      return res.status(400).json({ error: "Failed to load Gist. Check your GitHub token and Gist ID." });
+      return res.status(400).json({ error: "فشل تحميل Gist. تحقق من GitHub token وGist ID." });
     }
 
     const gist = await response.json() as {
@@ -46,10 +70,10 @@ router.get("/phones", async (_req, res) => {
       return res.json({ lists: [] });
     }
 
-    const data = JSON.parse(fileContent);
-    return res.json(data);
+    const raw = JSON.parse(fileContent);
+    return res.json(normalizeGistData(raw));
   } catch {
-    return res.status(500).json({ error: "Failed to parse Gist data." });
+    return res.status(500).json({ error: "فشل تحليل بيانات Gist." });
   }
 });
 
@@ -61,7 +85,7 @@ router.post("/phones", async (req, res) => {
 
   const settings = await getSettings();
   if (!settings?.githubToken) {
-    return res.status(400).json({ error: "GitHub token not configured. Add it in Settings." });
+    return res.status(400).json({ error: "GitHub token غير مضبوط. أضفه في الإعدادات." });
   }
 
   const content = JSON.stringify(parsed.data, null, 2);
@@ -69,7 +93,6 @@ router.post("/phones", async (req, res) => {
 
   try {
     if (settings.gistId) {
-      // Update existing gist
       const response = await fetch(`https://api.github.com/gists/${settings.gistId}`, {
         method: "PATCH",
         headers: {
@@ -83,13 +106,12 @@ router.post("/phones", async (req, res) => {
 
       if (!response.ok) {
         const err = await response.json() as { message?: string };
-        return res.status(400).json({ error: err.message ?? "Failed to update Gist." });
+        return res.status(400).json({ error: err.message ?? "فشل تحديث Gist." });
       }
 
       const gist = await response.json() as { id: string; html_url: string };
       return res.json({ success: true, gistId: gist.id, gistUrl: gist.html_url });
     } else {
-      // Create new gist
       const response = await fetch("https://api.github.com/gists", {
         method: "POST",
         headers: {
@@ -107,12 +129,11 @@ router.post("/phones", async (req, res) => {
 
       if (!response.ok) {
         const err = await response.json() as { message?: string };
-        return res.status(400).json({ error: err.message ?? "Failed to create Gist." });
+        return res.status(400).json({ error: err.message ?? "فشل إنشاء Gist." });
       }
 
       const gist = await response.json() as { id: string; html_url: string };
 
-      // Save the new gist ID to settings
       if (settings) {
         await db.update(settingsTable).set({ gistId: gist.id }).where(eq(settingsTable.id, settings.id));
       }
@@ -120,7 +141,7 @@ router.post("/phones", async (req, res) => {
       return res.json({ success: true, gistId: gist.id, gistUrl: gist.html_url });
     }
   } catch {
-    return res.status(500).json({ error: "Network error contacting GitHub." });
+    return res.status(500).json({ error: "خطأ في الشبكة عند الاتصال بـ GitHub." });
   }
 });
 

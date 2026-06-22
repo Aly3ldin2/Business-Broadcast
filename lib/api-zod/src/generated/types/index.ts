@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './baileysLogoutResult';
+export * from './baileysStatus';
 export * from './campaignInput';
 export * from './campaignResult';
-export * from './connectionTest';
+export * from './contact';
 export * from './gistData';
 export * from './gistSaveResult';
 export * from './healthStatus';

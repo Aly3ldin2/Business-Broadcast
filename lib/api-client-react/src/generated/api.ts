@@ -20,9 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  BaileysLogoutResult,
+  BaileysStatus,
   CampaignInput,
   CampaignResult,
-  ConnectionTest,
   GistData,
   GistSaveResult,
   HealthStatus,
@@ -486,20 +487,97 @@ export const useSaveSettings = <TError = ErrorType<unknown>,
       return useMutation(getSaveSettingsMutationOptions(options));
     }
 
-export const getTestConnectionUrl = () => {
+export const getGetBaileysStatusUrl = () => {
 
 
 
 
-  return `/api/settings/test`
+  return `/api/baileys/status`
 }
 
 /**
- * @summary Test WhatsApp API connection
+ * @summary Get Baileys WhatsApp connection status and QR code
  */
-export const testConnection = async ( options?: RequestInit): Promise<ConnectionTest> => {
+export const getBaileysStatus = async ( options?: RequestInit): Promise<BaileysStatus> => {
 
-  return customFetch<ConnectionTest>(getTestConnectionUrl(),
+  return customFetch<BaileysStatus>(getGetBaileysStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBaileysStatusQueryKey = () => {
+    return [
+    `/api/baileys/status`
+    ] as const;
+    }
+
+
+export const getGetBaileysStatusQueryOptions = <TData = Awaited<ReturnType<typeof getBaileysStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBaileysStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBaileysStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBaileysStatus>>> = ({ signal }) => getBaileysStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBaileysStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBaileysStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getBaileysStatus>>>
+export type GetBaileysStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get Baileys WhatsApp connection status and QR code
+ */
+
+export function useGetBaileysStatus<TData = Awaited<ReturnType<typeof getBaileysStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBaileysStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBaileysStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getBaileysLogoutUrl = () => {
+
+
+
+
+  return `/api/baileys/logout`
+}
+
+/**
+ * @summary Disconnect and clear WhatsApp session
+ */
+export const baileysLogout = async ( options?: RequestInit): Promise<BaileysLogoutResult> => {
+
+  return customFetch<BaileysLogoutResult>(getBaileysLogoutUrl(),
   {
     ...options,
     method: 'POST'
@@ -511,11 +589,11 @@ export const testConnection = async ( options?: RequestInit): Promise<Connection
 
 
 
-export const getTestConnectionMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof testConnection>>, TError,void, TContext> => {
+export const getBaileysLogoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof baileysLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof baileysLogout>>, TError,void, TContext> => {
 
-const mutationKey = ['testConnection'];
+const mutationKey = ['baileysLogout'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -525,10 +603,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testConnection>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof baileysLogout>>, void> = () => {
 
 
-          return  testConnection(requestOptions)
+          return  baileysLogout(requestOptions)
         }
 
 
@@ -538,21 +616,21 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type TestConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof testConnection>>>
+    export type BaileysLogoutMutationResult = NonNullable<Awaited<ReturnType<typeof baileysLogout>>>
 
-    export type TestConnectionMutationError = ErrorType<unknown>
+    export type BaileysLogoutMutationError = ErrorType<unknown>
 
     /**
- * @summary Test WhatsApp API connection
+ * @summary Disconnect and clear WhatsApp session
  */
-export const useTestConnection = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useBaileysLogout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof baileysLogout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof testConnection>>,
+        Awaited<ReturnType<typeof baileysLogout>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getTestConnectionMutationOptions(options));
+      return useMutation(getBaileysLogoutMutationOptions(options));
     }
 

@@ -5,8 +5,9 @@
  * WhatsApp Real Estate Broadcast API
  * OpenAPI spec version: 0.1.0
  */
+import type { Contact } from './contact';
 
 export interface PhoneList {
   name: string;
-  phones: string[];
+  phones: Contact[];
 }

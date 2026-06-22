@@ -14,6 +14,8 @@ tags:
     description: GitHub Gist phone list storage
   - name: settings
     description: API credentials and settings
+  - name: baileys
+    description: WhatsApp Baileys connection management
 paths:
   /healthz:
     get:
@@ -107,18 +109,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Settings"
 
-  /settings/test:
-    post:
-      operationId: testConnection
-      tags: [settings]
-      summary: Test WhatsApp API connection
+  /baileys/status:
+    get:
+      operationId: getBaileysStatus
+      tags: [baileys]
+      summary: Get Baileys WhatsApp connection status and QR code
       responses:
         "200":
-          description: Test result
+          description: Baileys status
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConnectionTest"
+                $ref: "#/components/schemas/BaileysStatus"
+
+  /baileys/logout:
+    post:
+      operationId: baileysLogout
+      tags: [baileys]
+      summary: Disconnect and clear WhatsApp session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaileysLogoutResult"
 
 components:
   schemas:
@@ -129,6 +144,17 @@ components:
         status:
           type: string
 
+    Contact:
+      type: object
+      required: [number]
+      properties:
+        number:
+          type: string
+          description: Phone number in international format without "+" (e.g. 201012345678)
+        name:
+          type: ["string", "null"]
+          description: Optional contact name
+
     MediaItem:
       type: object
       required: [type]
@@ -138,7 +164,7 @@ components:
           description: Public URL for the media
         id:
           type: ["string", "null"]
-          description: WhatsApp media ID (from upload endpoint)
+          description: Local media file ID (from upload endpoint)
         type:
           type: string
           enum: [image, video]
@@ -149,7 +175,7 @@ components:
       properties:
         id:
           type: string
-          description: WhatsApp media ID
+          description: Local media file ID
 
     CampaignInput:
       type: object
@@ -213,7 +239,7 @@ components:
         phones:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/Contact"
 
     GistSaveResult:
       type: object
@@ -232,38 +258,33 @@ components:
       properties:
         isConfigured:
           type: boolean
+          description: true if WhatsApp (Baileys) is connected
         hasGithubToken:
           type: boolean
-        phoneNumberId:
-          type: ["string", "null"]
-        accessToken:
-          type: ["string", "null"]
-        businessAccountId:
-          type: ["string", "null"]
         gistId:
           type: ["string", "null"]
 
     SettingsInput:
       type: object
       properties:
-        phoneNumberId:
-          type: string
-        accessToken:
-          type: string
-        businessAccountId:
-          type: string
         githubToken:
           type: string
         gistId:
           type: string
 
-    ConnectionTest:
+    BaileysStatus:
       type: object
-      required: [success, message]
+      required: [connected]
+      properties:
+        connected:
+          type: boolean
+        qr:
+          type: ["string", "null"]
+          description: Base64 QR code data URL to display to the user
+
+    BaileysLogoutResult:
+      type: object
+      required: [success]
       properties:
         success:
           type: boolean
-        message:
-          type: string
-        phoneNumber:
-          type: ["string", "null"]
