@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useSendCampaign,
@@ -219,13 +219,18 @@ export default function Campaign() {
     query: {
       queryKey: getGetBaileysStatusQueryKey(),
       refetchInterval: (q) => (q.state.data?.connected ? 15_000 : 5_000),
-      // When connection status changes, invalidate settings
-      select: (data) => {
-        void queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
-        return data;
-      },
     },
   });
+
+  // When connection status changes, invalidate settings — use ref to avoid re-invalidating every render
+  const prevConnected = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    const connected = baileysStatus?.connected;
+    if (connected !== prevConnected.current) {
+      prevConnected.current = connected;
+      void queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+    }
+  }, [baileysStatus?.connected, queryClient]);
 
   const { data: gistData } = useLoadPhonesFromGist({
     query: {
