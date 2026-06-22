@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, Trash2, Pencil, Loader2, Github,
-  Users, Hash, X, User, Phone,
+  Users, Hash, X, User, Phone, UserPlus,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -83,6 +84,59 @@ export default function Lists() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editList, setEditList] = useState<PhoneList | null>(null);
   const [deleteListName, setDeleteListName] = useState<string | null>(null);
+
+  // Quick-add state — one inline form open at a time per card
+  const [quickAddList, setQuickAddList] = useState<string | null>(null);
+  const [quickPhone, setQuickPhone] = useState("");
+  const [quickName, setQuickName] = useState("");
+  const [quickSaving, setQuickSaving] = useState(false);
+
+  function openQuickAdd(listName: string) {
+    setQuickAddList(listName);
+    setQuickPhone("");
+    setQuickName("");
+  }
+
+  function closeQuickAdd() {
+    setQuickAddList(null);
+    setQuickPhone("");
+    setQuickName("");
+  }
+
+  async function handleQuickAdd(list: PhoneList) {
+    const raw = quickPhone.replace(/\D/g, "");
+    if (raw.length < 7) return;
+    const dialDigits = country.dialCode.replace("+", "");
+    const full = raw.startsWith(dialDigits)
+      ? raw
+      : dialDigits + (raw.startsWith("0") ? raw.slice(1) : raw);
+
+    if (list.phones.some((c) => c.number === full)) {
+      toast({ title: "الرقم موجود بالفعل في القائمة", variant: "destructive" });
+      return;
+    }
+
+    const updatedList: PhoneList = {
+      ...list,
+      phones: [...list.phones, { number: full, name: quickName.trim() || null }],
+    };
+    const newLists = (gistData?.lists ?? []).map((l) =>
+      l.name === list.name ? updatedList : l
+    );
+
+    setQuickSaving(true);
+    try {
+      await saveMutation.mutateAsync({ data: { lists: newLists } });
+      queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
+      setQuickPhone("");
+      setQuickName("");
+      toast({ title: `تمت الإضافة إلى "${list.name}"` });
+    } catch (e: unknown) {
+      toast({ title: "فشل الحفظ", description: (e as Error)?.message, variant: "destructive" });
+    } finally {
+      setQuickSaving(false);
+    }
+  }
 
   const [formName, setFormName] = useState("");
   const [formContacts, setFormContacts] = useState<Contact[]>([]);
@@ -265,6 +319,19 @@ export default function Lists() {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
+                  onClick={() =>
+                    quickAddList === list.name ? closeQuickAdd() : openQuickAdd(list.name)
+                  }
+                  title="إضافة رقم سريعة"
+                  className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${
+                    quickAddList === list.name
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                  }`}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => openEdit(list)}
                   className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
@@ -279,6 +346,72 @@ export default function Lists() {
               </div>
             </div>
 
+            {/* Quick-add inline form */}
+            {quickAddList === list.name && (
+              <div className="px-4 py-3 bg-primary/5 border-b flex flex-col gap-2">
+                <p className="text-xs font-medium text-primary mb-1">إضافة جهة اتصال سريعة</p>
+                {/* Phone row */}
+                <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
+                  <div className="border-r border-border">
+                    <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                  </div>
+                  <input
+                    autoFocus
+                    type="tel"
+                    inputMode="numeric"
+                    value={quickPhone}
+                    onChange={(e) => setQuickPhone(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); void handleQuickAdd(list); }
+                      if (e.key === "Escape") closeQuickAdd();
+                    }}
+                    placeholder={country.sample}
+                    dir="ltr"
+                    className="flex-1 px-3 py-2 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/40 min-w-0"
+                  />
+                </div>
+                {/* Name row */}
+                <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
+                  <div className="flex items-center px-3 border-r border-border text-muted-foreground">
+                    <User className="h-3.5 w-3.5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={quickName}
+                    onChange={(e) => setQuickName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); void handleQuickAdd(list); }
+                      if (e.key === "Escape") closeQuickAdd();
+                    }}
+                    placeholder="الاسم (اختياري)"
+                    className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground/40 min-w-0"
+                  />
+                </div>
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => void handleQuickAdd(list)}
+                    disabled={quickPhone.replace(/\D/g, "").length < 7 || quickSaving}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+                  >
+                    {quickSaving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    حفظ
+                  </button>
+                  <button
+                    onClick={closeQuickAdd}
+                    className="px-3 py-1.5 rounded-lg border text-xs text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                  <span className="text-xs text-muted-foreground">Enter للحفظ · Esc للإغلاق</span>
+                </div>
+              </div>
+            )}
+
             {/* Contacts */}
             {list.phones.length > 0 && (
               <div className="divide-y divide-border/60">
@@ -290,11 +423,9 @@ export default function Lists() {
                       key={contact.number}
                       className="flex items-center gap-3 px-4 py-2.5"
                     >
-                      {/* Avatar */}
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${color}`}>
                         {initials}
                       </div>
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         {contact.name ? (
                           <>
