@@ -24,7 +24,7 @@ import {
   Send, Loader2, CloudUpload,
   CheckCircle2, XCircle, ImageIcon, Video,
   AlertTriangle, Trash2, Users, KeyboardIcon,
-  Pencil, Check, X, PenLine, UploadCloud, Hash,
+  Pencil, Check, X, PenLine, UploadCloud, Hash, Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CountryPicker } from "@/components/country-picker";
@@ -57,21 +57,41 @@ export default function Campaign() {
 
   // ── Phone input mode ────────────────────────────────────────────
   const [phoneMode, setPhoneMode] = useState<"lists" | "manual">("lists");
-  const [phonesText, setPhonesText] = useState("");
   const [listName, setListName] = useState("");
   const [country, setCountry] = useState<Country>(() =>
     findCountry(localStorage.getItem("wa_country") ?? "EG")
   );
+  // Manual mode: single input → list of added numbers
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneList, setPhoneList] = useState<string[]>([]);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
 
   function handleCountryChange(c: Country) {
     setCountry(c);
     localStorage.setItem("wa_country", c.iso2);
   }
 
-  function applyPrefix() {
-    setPhonesText((prev) => applyCountryCode(prev, country.dialCode));
+  function addPhone() {
+    const raw = phoneInput.replace(/\D/g, "");
+    if (raw.length < 7) return;
+    const dialDigits = country.dialCode.replace("+", "");
+    const full = raw.startsWith(dialDigits) ? raw : dialDigits + (raw.startsWith("0") ? raw.slice(1) : raw);
+    if (!phoneList.includes(full)) {
+      setPhoneList((prev) => [...prev, full]);
+    }
+    setPhoneInput("");
+    phoneInputRef.current?.focus();
   }
-  const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
+
+  function removePhone(num: string) {
+    setPhoneList((prev) => prev.filter((p) => p !== num));
+  }
+
+  function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") { e.preventDefault(); addPhone(); }
+  }
 
   // ── Message ─────────────────────────────────────────────────────
   const [message, setMessage] = useState("");
@@ -126,13 +146,6 @@ export default function Campaign() {
   const saveMutation = useSavePhonesToGist();
 
   // ── Phone parsing ───────────────────────────────────────────────
-  function parsePhones(): string[] {
-    return phonesText
-      .split(/[\n,،;]+/)
-      .map((p) => p.trim().replace(/[\s+\-()]/g, ""))
-      .filter((p) => p.length >= 10);
-  }
-
   function getPhonesFromSelectedLists(): string[] {
     if (!gistData?.lists) return [];
     const all = new Set<string>();
@@ -142,7 +155,7 @@ export default function Campaign() {
     return Array.from(all);
   }
 
-  const phones = phoneMode === "lists" ? getPhonesFromSelectedLists() : parsePhones();
+  const phones = phoneMode === "lists" ? getPhonesFromSelectedLists() : phoneList;
 
   function toggleList(listItem: PhoneList) {
     setSelectedLists((prev) => {
@@ -355,32 +368,74 @@ export default function Campaign() {
 
           {/* ── Content per mode ── */}
           {phoneMode === "manual" ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+            <div className="space-y-4">
+              {/* Phone input — country picker embedded */}
+              <div className="flex flex-col items-center gap-3">
+                {/* The input field */}
+                <div className="flex w-full max-w-sm rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background shadow-sm">
+                  {/* Country side */}
+                  <div className="border-r">
+                    <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                  </div>
+                  {/* Number input */}
+                  <input
+                    ref={phoneInputRef}
+                    type="tel"
+                    inputMode="numeric"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={handlePhoneKeyDown}
+                    placeholder="1012345678"
+                    dir="ltr"
+                    className="flex-1 px-4 py-2.5 text-base font-mono bg-transparent outline-none placeholder:text-muted-foreground/50 min-w-0"
+                  />
+                </div>
+                {/* Add button */}
                 <button
-                  type="button"
-                  onClick={applyPrefix}
-                  disabled={!phonesText.trim()}
-                  className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  onClick={addPhone}
+                  disabled={phoneInput.replace(/\D/g, "").length < 7}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors active:scale-95"
                 >
-                  <Hash className="h-3.5 w-3.5" />
-                  تطبيق المفتاح
+                  <Plus className="h-4 w-4" />
+                  إضافة الرقم
                 </button>
-                <span className="text-xs text-muted-foreground">الأصفار الأولى تُحذف</span>
-              </div>
-              <Textarea
-                placeholder={`${country.dialCode.replace("+", "")}1012345678\n${country.dialCode.replace("+", "")}1123456789\n\nألصق الأرقام واضغط "تطبيق المفتاح"`}
-                value={phonesText}
-                onChange={(e) => setPhonesText(e.target.value)}
-                rows={5}
-                className="font-mono text-sm resize-none"
-                dir="ltr"
-              />
-              {phones.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">{phones.length}</strong> رقم صالح
+                  اضغط Enter أو زرار الإضافة — الأصفار الأولى تُحذف تلقائياً
                 </p>
+              </div>
+
+              {/* Added numbers list */}
+              {phoneList.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      الأرقام المضافة ({phoneList.length})
+                    </p>
+                    <button
+                      onClick={() => setPhoneList([])}
+                      className="text-xs text-destructive hover:underline"
+                    >
+                      مسح الكل
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
+                    {phoneList.map((num) => (
+                      <span
+                        key={num}
+                        className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-muted border text-xs font-mono"
+                        dir="ltr"
+                      >
+                        <button
+                          onClick={() => removePhone(num)}
+                          className="w-4 h-4 rounded-full bg-muted-foreground/20 hover:bg-destructive hover:text-white flex items-center justify-center transition-colors shrink-0"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                        {num}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ) : (
