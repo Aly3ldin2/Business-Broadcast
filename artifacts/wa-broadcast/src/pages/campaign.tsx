@@ -305,66 +305,97 @@ export default function Campaign() {
 
       {/* ─── Step 1: Phones ─── */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <StepBadge n={1} />أرقام الهاتف
             </CardTitle>
-            <div className="flex items-center gap-2">
-              {/* Mode toggle */}
-              <div className="flex rounded-lg border bg-muted p-0.5 text-xs">
-                {settings?.hasGithubToken && hasLists && (
-                  <button
-                    onClick={() => setPhoneMode("lists")}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-                      phoneMode === "lists"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Users className="h-3 w-3" />
-                    قوائم محفوظة
-                  </button>
-                )}
-                <button
-                  onClick={() => setPhoneMode("manual")}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-                    phoneMode === "manual"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <KeyboardIcon className="h-3 w-3" />
-                  إدخال يدوي
-                </button>
-              </div>
-              {/* Save button (manual mode) */}
-              {phoneMode === "manual" && settings?.hasGithubToken && phones.length > 0 && (
-                <Button variant="outline" size="sm" className="h-7 text-xs"
-                  onClick={() => setIsSaveListOpen(true)}>
-                  <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
-                </Button>
-              )}
-            </div>
+            {phoneMode === "manual" && settings?.hasGithubToken && phones.length > 0 && (
+              <Button variant="outline" size="sm" className="h-7 text-xs"
+                onClick={() => setIsSaveListOpen(true)}>
+                <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
+              </Button>
+            )}
           </div>
         </CardHeader>
-        <CardContent>
-          {phoneMode === "lists" ? (
+        <CardContent className="space-y-3">
+
+          {/* ── Mode toggle (always visible) ── */}
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted">
+            <button
+              onClick={() => setPhoneMode("manual")}
+              className={`flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
+                phoneMode === "manual"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <KeyboardIcon className="h-4 w-4" />
+              إدخال يدوي
+            </button>
+            <button
+              onClick={() => setPhoneMode("lists")}
+              className={`flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
+                phoneMode === "lists"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              من القوائم
+              {hasLists && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  phoneMode === "lists" ? "bg-primary/10 text-primary" : "bg-muted-foreground/15 text-muted-foreground"
+                }`}>
+                  {lists.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* ── Content per mode ── */}
+          {phoneMode === "manual" ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                <button
+                  type="button"
+                  onClick={applyPrefix}
+                  disabled={!phonesText.trim()}
+                  className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Hash className="h-3.5 w-3.5" />
+                  تطبيق المفتاح
+                </button>
+                <span className="text-xs text-muted-foreground">الأصفار الأولى تُحذف</span>
+              </div>
+              <Textarea
+                placeholder={`${country.dialCode.replace("+", "")}1012345678\n${country.dialCode.replace("+", "")}1123456789\n\nألصق الأرقام واضغط "تطبيق المفتاح"`}
+                value={phonesText}
+                onChange={(e) => setPhonesText(e.target.value)}
+                rows={5}
+                className="font-mono text-sm resize-none"
+                dir="ltr"
+              />
+              {phones.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  <strong className="text-foreground">{phones.length}</strong> رقم صالح
+                </p>
+              )}
+            </div>
+          ) : (
             <>
               {!settings?.hasGithubToken ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p>فعّل GitHub Gist في الإعدادات لحفظ وتحميل القوائم</p>
-                  <a href="/settings" className="underline text-xs mt-1 inline-block">الإعدادات</a>
+                <div className="text-center py-8 space-y-2">
+                  <Users className="h-9 w-9 mx-auto text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">محتاج GitHub Token لتحميل القوائم</p>
+                  <a href="/settings" className="text-xs underline text-primary">اذهب للإعدادات</a>
                 </div>
               ) : !hasLists ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p>لا توجد قوائم محفوظة بعد</p>
-                  <button
-                    onClick={() => setPhoneMode("manual")}
-                    className="underline text-xs mt-1"
-                  >
+                <div className="text-center py-8 space-y-2">
+                  <Users className="h-9 w-9 mx-auto text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">لا توجد قوائم محفوظة بعد</p>
+                  <button onClick={() => setPhoneMode("manual")} className="text-xs underline text-primary">
                     أضف أرقاماً يدوياً واحفظها كقائمة
                   </button>
                 </div>
@@ -376,21 +407,19 @@ export default function Campaign() {
                       <button
                         key={list.name}
                         onClick={() => toggleList(list)}
-                        className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all text-sm ${
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-sm ${
                           isSelected
-                            ? "border-primary bg-primary/5 text-foreground"
-                            : "border-border hover:border-primary/40 hover:bg-muted/50"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/40 hover:bg-muted/40"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                            isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
-                          }`}>
-                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                          </div>
-                          <span className="font-medium">{list.name}</span>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                        }`}>
+                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
                         </div>
-                        <Badge variant="secondary" className="text-xs">
+                        <span className="flex-1 text-right font-medium">{list.name}</span>
+                        <Badge variant="secondary" className="text-xs shrink-0">
                           {list.phones.length} رقم
                         </Badge>
                       </button>
@@ -406,39 +435,6 @@ export default function Campaign() {
                 </div>
               )}
             </>
-          ) : (
-            <div className="space-y-2">
-              {/* Country picker row */}
-              <div className="flex items-center gap-2">
-                <CountryPicker value={country.iso2} onChange={handleCountryChange} />
-                <button
-                  type="button"
-                  onClick={applyPrefix}
-                  disabled={!phonesText.trim()}
-                  className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="أضف مفتاح الدولة تلقائياً لجميع الأرقام"
-                >
-                  <Hash className="h-3.5 w-3.5" />
-                  تطبيق المفتاح
-                </button>
-                <span className="text-xs text-muted-foreground">
-                  الأصفار الأولى تُحذف تلقائياً
-                </span>
-              </div>
-              <Textarea
-                placeholder={`${country.dialCode.replace("+","")}1012345678\n${country.dialCode.replace("+","")}1123456789\n\nأو ألصق الأرقام واضغط "تطبيق المفتاح"`}
-                value={phonesText}
-                onChange={(e) => setPhonesText(e.target.value)}
-                rows={5}
-                className="font-mono text-sm resize-none"
-                dir="ltr"
-              />
-              {phones.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">{phones.length}</strong> رقم صالح
-                </p>
-              )}
-            </div>
           )}
         </CardContent>
       </Card>
