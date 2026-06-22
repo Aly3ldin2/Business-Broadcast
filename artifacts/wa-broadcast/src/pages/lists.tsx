@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryPicker } from "@/components/country-picker";
-import { findCountry, applyCountryCode, type Country } from "@/data/countries";
+import { findCountry, parseRawNumbers, type Country } from "@/data/countries";
 import {
   useLoadPhonesFromGist,
   useSavePhonesToGist,
@@ -9,7 +9,6 @@ import {
   getLoadPhonesFromGistQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +38,7 @@ import {
   Users,
   AlertTriangle,
   Hash,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,7 +65,10 @@ export default function Lists() {
   const [deleteListName, setDeleteListName] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
-  const [formPhones, setFormPhones] = useState("");
+  const [formPhoneList, setFormPhoneList] = useState<string[]>([]);
+  const [formPhoneInput, setFormPhoneInput] = useState("");
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [bulkText, setBulkText] = useState("");
   const [country, setCountry] = useState<Country>(() =>
     findCountry(localStorage.getItem("wa_country") ?? "EG")
   );
@@ -75,37 +78,60 @@ export default function Lists() {
     localStorage.setItem("wa_country", c.iso2);
   }
 
-  function applyPrefix() {
-    setFormPhones((prev) => applyCountryCode(prev, country.dialCode));
+  function addFormPhone() {
+    const raw = formPhoneInput.replace(/\D/g, "");
+    if (raw.length < 7) return;
+    const dialDigits = country.dialCode.replace("+", "");
+    const full = raw.startsWith(dialDigits)
+      ? raw
+      : dialDigits + (raw.startsWith("0") ? raw.slice(1) : raw);
+    if (!formPhoneList.includes(full)) {
+      setFormPhoneList((prev) => [...prev, full]);
+    }
+    setFormPhoneInput("");
   }
 
-  function parsePhones(text: string): string[] {
-    return text
-      .split(/[\n,،;]+/)
-      .map((p) => p.trim().replace(/[\s+\-()]/g, ""))
-      .filter((p) => p.length >= 10);
+  function removeFormPhone(num: string) {
+    setFormPhoneList((prev) => prev.filter((p) => p !== num));
+  }
+
+  function addBulk() {
+    const nums = parseRawNumbers(bulkText, country.dialCode);
+    if (nums.length === 0) return;
+    setFormPhoneList((prev) => {
+      const set = new Set(prev);
+      nums.forEach((n) => set.add(n));
+      return Array.from(set);
+    });
+    setBulkText("");
+    setShowBulkPaste(false);
   }
 
   function openCreate() {
     setFormName("");
-    setFormPhones("");
+    setFormPhoneList([]);
+    setFormPhoneInput("");
+    setShowBulkPaste(false);
+    setBulkText("");
     setIsCreateOpen(true);
   }
 
   function openEdit(list: PhoneList) {
     setFormName(list.name);
-    setFormPhones(list.phones.join("\n"));
+    setFormPhoneList(list.phones);
+    setFormPhoneInput("");
+    setShowBulkPaste(false);
+    setBulkText("");
     setEditList(list);
   }
 
   async function handleSave() {
-    const phones = parsePhones(formPhones);
     if (!formName.trim()) return;
+    const phones = formPhoneList;
     const existing: PhoneList[] = gistData?.lists ?? [];
 
     let newLists: PhoneList[];
     if (editList) {
-      // Replace the edited list (find by old name)
       newLists = existing.map((l) =>
         l.name === editList.name ? { name: formName.trim(), phones } : l
       );
@@ -266,34 +292,121 @@ export default function Lists() {
                 autoFocus
               />
             </div>
-            <div>
+
+            <div className="space-y-3">
               <Label>الأرقام</Label>
-              {/* Country picker row */}
-              <div className="flex items-center gap-2 mt-1.5 mb-2">
-                <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+
+              {/* Input row */}
+              <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background shadow-sm">
+                <div className="border-r">
+                  <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                </div>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={formPhoneInput}
+                  onChange={(e) => setFormPhoneInput(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFormPhone(); } }}
+                  placeholder={country.sample}
+                  dir="ltr"
+                  className="flex-1 px-3 py-2 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/50 min-w-0"
+                />
+              </div>
+
+              {/* Buttons row */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={applyPrefix}
-                  disabled={!formPhones.trim()}
-                  className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  onClick={addFormPhone}
+                  disabled={formPhoneInput.replace(/\D/g, "").length < 7}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  إضافة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowBulkPaste((v) => !v); setBulkText(""); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
                   <Hash className="h-3.5 w-3.5" />
-                  تطبيق المفتاح
+                  لصق متعدد
                 </button>
                 <span className="text-xs text-muted-foreground">الأصفار الأولى تُحذف</span>
               </div>
-              <Textarea
-                value={formPhones}
-                onChange={(e) => setFormPhones(e.target.value)}
-                placeholder={`${country.dialCode.replace("+", "")}1012345678\n${country.dialCode.replace("+", "")}1123456789\n\nأو ألصق الأرقام واضغط "تطبيق المفتاح"`}
-                rows={7}
-                className="font-mono text-sm resize-none"
-                dir="ltr"
-              />
-              {formPhones && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {parsePhones(formPhones).length} رقم صالح
-                </p>
+
+              {/* Bulk paste panel */}
+              {showBulkPaste && (
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">الصق أرقاماً (كل رقم في سطر أو مفصولة بفواصل)</p>
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder={`${country.sample}\n${country.sample.slice(0, -3)}456\n...`}
+                    rows={4}
+                    dir="ltr"
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono resize-none outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/40"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={addBulk}
+                      disabled={!bulkText.trim()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      إضافة الكل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowBulkPaste(false); setBulkText(""); }}
+                      className="px-3 py-1.5 rounded-lg border text-sm text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      إلغاء
+                    </button>
+                    {bulkText.trim() && (
+                      <span className="text-xs text-muted-foreground">
+                        {parseRawNumbers(bulkText, country.dialCode).length} رقم
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Chips */}
+              {formPhoneList.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      الأرقام المضافة ({formPhoneList.length})
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setFormPhoneList([])}
+                      className="text-xs text-destructive hover:underline"
+                    >
+                      مسح الكل
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+                    {formPhoneList.map((num) => (
+                      <span
+                        key={num}
+                        className="flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full bg-muted border text-xs font-mono"
+                        dir="ltr"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => removeFormPhone(num)}
+                          className="w-3.5 h-3.5 rounded-full bg-muted-foreground/20 hover:bg-destructive hover:text-white flex items-center justify-center transition-colors shrink-0"
+                        >
+                          <X className="h-2 w-2" />
+                        </button>
+                        {num}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

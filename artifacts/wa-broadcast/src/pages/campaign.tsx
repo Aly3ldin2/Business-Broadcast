@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CountryPicker } from "@/components/country-picker";
-import { findCountry, applyCountryCode, DEFAULT_COUNTRY, type Country } from "@/data/countries";
+import { findCountry, parseRawNumbers, type Country } from "@/data/countries";
 
 interface SendResult {
   phone: string;
@@ -65,6 +65,8 @@ export default function Campaign() {
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneList, setPhoneList] = useState<string[]>([]);
   const phoneInputRef = useRef<HTMLInputElement>(null);
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [bulkText, setBulkText] = useState("");
 
   const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
 
@@ -91,6 +93,18 @@ export default function Campaign() {
 
   function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") { e.preventDefault(); addPhone(); }
+  }
+
+  function addBulk() {
+    const nums = parseRawNumbers(bulkText, country.dialCode);
+    if (nums.length === 0) return;
+    setPhoneList((prev) => {
+      const set = new Set(prev);
+      nums.forEach((n) => set.add(n));
+      return Array.from(set);
+    });
+    setBulkText("");
+    setShowBulkPaste(false);
   }
 
   // ── Message ─────────────────────────────────────────────────────
@@ -373,11 +387,9 @@ export default function Campaign() {
               <div className="flex flex-col items-center gap-3">
                 {/* The input field */}
                 <div className="flex w-full max-w-sm rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background shadow-sm">
-                  {/* Country side */}
                   <div className="border-r">
                     <CountryPicker value={country.iso2} onChange={handleCountryChange} />
                   </div>
-                  {/* Number input */}
                   <input
                     ref={phoneInputRef}
                     type="tel"
@@ -385,26 +397,71 @@ export default function Campaign() {
                     value={phoneInput}
                     onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ""))}
                     onKeyDown={handlePhoneKeyDown}
-                    placeholder="1012345678"
+                    placeholder={country.sample}
                     dir="ltr"
                     className="flex-1 px-4 py-2.5 text-base font-mono bg-transparent outline-none placeholder:text-muted-foreground/50 min-w-0"
                   />
                 </div>
-                {/* Add button */}
-                <button
-                  onClick={addPhone}
-                  disabled={phoneInput.replace(/\D/g, "").length < 7}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors active:scale-95"
-                >
-                  <Plus className="h-4 w-4" />
-                  إضافة الرقم
-                </button>
+                {/* Add button row */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={addPhone}
+                    disabled={phoneInput.replace(/\D/g, "").length < 7}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors active:scale-95"
+                  >
+                    <Plus className="h-4 w-4" />
+                    إضافة الرقم
+                  </button>
+                  <button
+                    onClick={() => { setShowBulkPaste((v) => !v); setBulkText(""); }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Hash className="h-3.5 w-3.5" />
+                    لصق أرقام متعددة
+                  </button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   اضغط Enter أو زرار الإضافة — الأصفار الأولى تُحذف تلقائياً
                 </p>
               </div>
 
-              {/* Added numbers list */}
+              {/* Bulk paste panel */}
+              {showBulkPaste && (
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">الصق أرقاماً (كل رقم في سطر أو مفصولة بفواصل)</p>
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder={`${country.sample}\n${country.sample.slice(0, -3)}456\n...`}
+                    rows={5}
+                    dir="ltr"
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono resize-none outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/40"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={addBulk}
+                      disabled={!bulkText.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      إضافة الكل
+                    </button>
+                    <button
+                      onClick={() => { setShowBulkPaste(false); setBulkText(""); }}
+                      className="px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      إلغاء
+                    </button>
+                    {bulkText.trim() && (
+                      <span className="text-xs text-muted-foreground">
+                        {parseRawNumbers(bulkText, country.dialCode).length} رقم
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Added numbers list — no height limit */}
               {phoneList.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -418,7 +475,7 @@ export default function Campaign() {
                       مسح الكل
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
+                  <div className="flex flex-wrap gap-2">
                     {phoneList.map((num) => (
                       <span
                         key={num}
