@@ -24,9 +24,11 @@ import {
   Send, Loader2, CloudUpload,
   CheckCircle2, XCircle, ImageIcon, Video,
   AlertTriangle, Trash2, Users, KeyboardIcon,
-  Pencil, Check, X, PenLine, UploadCloud,
+  Pencil, Check, X, PenLine, UploadCloud, Hash,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CountryPicker } from "@/components/country-picker";
+import { findCountry, applyCountryCode, DEFAULT_COUNTRY, type Country } from "@/data/countries";
 
 interface SendResult {
   phone: string;
@@ -57,6 +59,18 @@ export default function Campaign() {
   const [phoneMode, setPhoneMode] = useState<"lists" | "manual">("lists");
   const [phonesText, setPhonesText] = useState("");
   const [listName, setListName] = useState("");
+  const [country, setCountry] = useState<Country>(() =>
+    findCountry(localStorage.getItem("wa_country") ?? "EG")
+  );
+
+  function handleCountryChange(c: Country) {
+    setCountry(c);
+    localStorage.setItem("wa_country", c.iso2);
+  }
+
+  function applyPrefix() {
+    setPhonesText((prev) => applyCountryCode(prev, country.dialCode));
+  }
   const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
 
   // ── Message ─────────────────────────────────────────────────────
@@ -394,8 +408,25 @@ export default function Campaign() {
             </>
           ) : (
             <div className="space-y-2">
+              {/* Country picker row */}
+              <div className="flex items-center gap-2">
+                <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                <button
+                  type="button"
+                  onClick={applyPrefix}
+                  disabled={!phonesText.trim()}
+                  className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="أضف مفتاح الدولة تلقائياً لجميع الأرقام"
+                >
+                  <Hash className="h-3.5 w-3.5" />
+                  تطبيق المفتاح
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  الأصفار الأولى تُحذف تلقائياً
+                </span>
+              </div>
               <Textarea
-                placeholder={"201012345678\n201123456789\n\nألصق الأرقام — رقم في كل سطر أو مفصولة بفاصلة"}
+                placeholder={`${country.dialCode.replace("+","")}1012345678\n${country.dialCode.replace("+","")}1123456789\n\nأو ألصق الأرقام واضغط "تطبيق المفتاح"`}
                 value={phonesText}
                 onChange={(e) => setPhonesText(e.target.value)}
                 rows={5}

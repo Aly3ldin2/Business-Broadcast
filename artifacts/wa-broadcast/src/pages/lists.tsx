@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { CountryPicker } from "@/components/country-picker";
+import { findCountry, applyCountryCode, type Country } from "@/data/countries";
 import {
   useLoadPhonesFromGist,
   useSavePhonesToGist,
@@ -36,6 +38,7 @@ import {
   Github,
   Users,
   AlertTriangle,
+  Hash,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,6 +66,18 @@ export default function Lists() {
 
   const [formName, setFormName] = useState("");
   const [formPhones, setFormPhones] = useState("");
+  const [country, setCountry] = useState<Country>(() =>
+    findCountry(localStorage.getItem("wa_country") ?? "EG")
+  );
+
+  function handleCountryChange(c: Country) {
+    setCountry(c);
+    localStorage.setItem("wa_country", c.iso2);
+  }
+
+  function applyPrefix() {
+    setFormPhones((prev) => applyCountryCode(prev, country.dialCode));
+  }
 
   function parsePhones(text: string): string[] {
     return text
@@ -253,12 +268,26 @@ export default function Lists() {
             </div>
             <div>
               <Label>الأرقام</Label>
+              {/* Country picker row */}
+              <div className="flex items-center gap-2 mt-1.5 mb-2">
+                <CountryPicker value={country.iso2} onChange={handleCountryChange} />
+                <button
+                  type="button"
+                  onClick={applyPrefix}
+                  disabled={!formPhones.trim()}
+                  className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Hash className="h-3.5 w-3.5" />
+                  تطبيق المفتاح
+                </button>
+                <span className="text-xs text-muted-foreground">الأصفار الأولى تُحذف</span>
+              </div>
               <Textarea
                 value={formPhones}
                 onChange={(e) => setFormPhones(e.target.value)}
-                placeholder={`201012345678\n201123456789\n201234567890\n\nرقم في كل سطر أو مفصولة بفاصلة`}
-                rows={8}
-                className="mt-1.5 font-mono text-sm resize-none"
+                placeholder={`${country.dialCode.replace("+", "")}1012345678\n${country.dialCode.replace("+", "")}1123456789\n\nأو ألصق الأرقام واضغط "تطبيق المفتاح"`}
+                rows={7}
+                className="font-mono text-sm resize-none"
                 dir="ltr"
               />
               {formPhones && (
