@@ -17,16 +17,24 @@ class BaileysService {
   private _qr: string | null = null;
   private _connected = false;
   private _initializing = false;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   async initialize() {
     if (this._initializing) return;
     this._initializing = true;
+
+    // Clear any pending reconnect
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+
     try {
       await mkdir(AUTH_DIR, { recursive: true });
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
       const { version } = await fetchLatestBaileysVersion();
 
-      this.sock = makeWASocket({
+      const sock = makeWASocket({
         version,
         auth: state,
         logger: silentLogger,
@@ -35,7 +43,12 @@ class BaileysService {
         connectTimeoutMs: 60_000,
       });
 
-      this.sock.ev.on("connection.update", async (update) => {
+      this.sock = sock;
+
+      sock.ev.on("connection.update", async (update) => {
+        // If this socket was replaced (logout), ignore stale events
+        if (this.sock !== sock) return;
+
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -52,9 +65,10 @@ class BaileysService {
           this._qr = null;
           this._initializing = false;
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-          if (shouldReconnect) {
-            setTimeout(() => void this.initialize(), 5000);
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+          if (!isLoggedOut) {
+            // Auto-reconnect with backoff
+            this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
           }
         } else if (connection === "open") {
           this._connected = true;
@@ -63,10 +77,10 @@ class BaileysService {
         }
       });
 
-      this.sock.ev.on("creds.update", saveCreds);
+      sock.ev.on("creds.update", saveCreds);
     } catch {
       this._initializing = false;
-      setTimeout(() => void this.initialize(), 10_000);
+      this._reconnectTimer = setTimeout(() => void this.initialize(), 10_000);
     }
   }
 
@@ -99,14 +113,27 @@ class BaileysService {
   }
 
   async logout() {
-    if (this.sock) {
-      try { await this.sock.logout(); } catch { /* ignore */ }
-      this.sock = null;
-    }
+    // Capture and replace socket reference first so stale events are ignored
+    const sock = this.sock;
+    this.sock = null;
     this._connected = false;
     this._qr = null;
     this._initializing = false;
+
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+
+    if (sock) {
+      sock.ev.removeAllListeners();
+      try { await sock.logout(); } catch { /* ignore */ }
+    }
+
     await rm(AUTH_DIR, { recursive: true, force: true });
+
+    // Re-initialize immediately so a fresh QR appears
+    void this.initialize();
   }
 }
 

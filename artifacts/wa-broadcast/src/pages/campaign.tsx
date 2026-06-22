@@ -1,11 +1,14 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useSendCampaign,
   useLoadPhonesFromGist,
   useSavePhonesToGist,
   useGetSettings,
+  useGetBaileysStatus,
   getLoadPhonesFromGistQueryKey,
+  getGetBaileysStatusQueryKey,
+  getGetSettingsQueryKey,
 } from "@workspace/api-client-react";
 import type { Contact } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -23,8 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Send, Loader2, CloudUpload,
-  CheckCircle2, XCircle, ImageIcon, Video,
-  AlertTriangle, Trash2, Users, KeyboardIcon,
+  CheckCircle2, XCircle, Video,
+  AlertTriangle, Users, KeyboardIcon,
   Pencil, Check, X, PenLine, UploadCloud, Hash, Plus,
   ChevronDown, ChevronRight,
 } from "lucide-react";
@@ -67,7 +70,6 @@ export default function Campaign() {
 
   // ── Phone input mode ────────────────────────────────────────────
   const [phoneMode, setPhoneMode] = useState<"lists" | "manual">("lists");
-  const [listName, setListName] = useState("");
   const [country, setCountry] = useState<Country>(() =>
     findCountry(localStorage.getItem("wa_country") ?? "EG")
   );
@@ -77,9 +79,13 @@ export default function Campaign() {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState("");
 
-  // Lists mode state: selected individual phone numbers + expanded lists
+  // Lists mode: selected individual phone numbers + expanded lists
   const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
   const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
+
+  // Save-list dialog
+  const [isSaveListOpen, setIsSaveListOpen] = useState(false);
+  const [listName, setListName] = useState("");
 
   function handleCountryChange(c: Country) {
     setCountry(c);
@@ -154,9 +160,9 @@ export default function Campaign() {
   function getListCheckState(list: PhoneList): "all" | "some" | "none" {
     const nums = list.phones.map((c) => c.number);
     if (nums.length === 0) return "none";
-    const selectedCount = nums.filter((n) => selectedPhones.has(n)).length;
-    if (selectedCount === 0) return "none";
-    if (selectedCount === nums.length) return "all";
+    const count = nums.filter((n) => selectedPhones.has(n)).length;
+    if (count === 0) return "none";
+    if (count === nums.length) return "all";
     return "some";
   }
 
@@ -173,24 +179,26 @@ export default function Campaign() {
   const [sendResults, setSendResults] = useState<SendResult[] | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isSaveListOpen, setIsSaveListOpen] = useState(false);
 
   // ── Signature ───────────────────────────────────────────────────
-  const [signature, setSignature] = useState(() =>
-    localStorage.getItem("wa_signature") ?? ""
-  );
-  const [signatureEnabled, setSignatureEnabled] = useState(() =>
-    localStorage.getItem("wa_signature_enabled") !== "false"
+  const [signature, setSignature] = useState(() => localStorage.getItem("wa_signature") ?? "");
+  const [signatureEnabled, setSignatureEnabled] = useState(
+    () => localStorage.getItem("wa_signature_enabled") !== "false"
   );
   const [isEditingSignature, setIsEditingSignature] = useState(false);
   const [sigDraft, setSigDraft] = useState("");
 
-  useEffect(() => { localStorage.setItem("wa_signature", signature); }, [signature]);
-  useEffect(() => { localStorage.setItem("wa_signature_enabled", String(signatureEnabled)); }, [signatureEnabled]);
-
   function startEditSignature() { setSigDraft(signature); setIsEditingSignature(true); }
-  function saveSignature() { setSignature(sigDraft); setIsEditingSignature(false); }
-  function cancelEditSignature() { setIsEditingSignature(false); }
+  function saveSignature() {
+    setSignature(sigDraft);
+    localStorage.setItem("wa_signature", sigDraft);
+    setIsEditingSignature(false);
+  }
+  function toggleSignature() {
+    const next = !signatureEnabled;
+    setSignatureEnabled(next);
+    localStorage.setItem("wa_signature_enabled", String(next));
+  }
 
   const fullMessage =
     signatureEnabled && signature.trim()
@@ -198,7 +206,27 @@ export default function Campaign() {
       : message;
 
   // ── API hooks ───────────────────────────────────────────────────
-  const { data: settings } = useGetSettings();
+  // Poll settings every 5s when not configured so the banner auto-clears on connect
+  const { data: settings } = useGetSettings({
+    query: {
+      queryKey: getGetSettingsQueryKey(),
+      refetchInterval: (q) => (q.state.data?.isConfigured ? false : 5_000),
+    },
+  });
+
+  // Poll baileys status to keep connection indicator fresh
+  const { data: baileysStatus } = useGetBaileysStatus({
+    query: {
+      queryKey: getGetBaileysStatusQueryKey(),
+      refetchInterval: (q) => (q.state.data?.connected ? 15_000 : 5_000),
+      // When connection status changes, invalidate settings
+      select: (data) => {
+        void queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+        return data;
+      },
+    },
+  });
+
   const { data: gistData } = useLoadPhonesFromGist({
     query: {
       enabled: !!settings?.hasGithubToken,
@@ -209,8 +237,9 @@ export default function Campaign() {
   const saveMutation = useSavePhonesToGist();
 
   const phones = phoneMode === "lists" ? Array.from(selectedPhones) : phoneList;
-  const lists = gistData?.lists ?? [];
+  const lists: PhoneList[] = gistData?.lists ?? [];
   const hasLists = lists.length > 0;
+  const isConnected = baileysStatus?.connected ?? settings?.isConfigured ?? false;
 
   // ── Media upload ────────────────────────────────────────────────
   async function uploadFile(file: File): Promise<string | undefined> {
@@ -223,9 +252,9 @@ export default function Campaign() {
   }
 
   const processFiles = useCallback(async (files: File[]) => {
-    const validFiles = files.filter((f) => {
-      return f.type.startsWith("image/") || f.type.startsWith("video/");
-    });
+    const validFiles = files.filter((f) =>
+      f.type.startsWith("image/") || f.type.startsWith("video/")
+    );
     if (!validFiles.length) return;
 
     const newItems: MediaItem[] = validFiles.map((file) => ({
@@ -265,8 +294,7 @@ export default function Campaign() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    void processFiles(files);
+    void processFiles(Array.from(e.dataTransfer.files));
   }
 
   function removeItem(id: string) {
@@ -347,7 +375,7 @@ export default function Campaign() {
         </p>
       </div>
 
-      {!settings?.isConfigured && (
+      {!isConnected && (
         <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
@@ -399,7 +427,9 @@ export default function Campaign() {
               من القوائم
               {hasLists && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  phoneMode === "lists" ? "bg-primary/10 text-primary" : "bg-muted-foreground/15 text-muted-foreground"
+                  phoneMode === "lists"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted-foreground/15 text-muted-foreground"
                 }`}>
                   {lists.length}
                 </span>
@@ -407,7 +437,7 @@ export default function Campaign() {
             </button>
           </div>
 
-          {/* Content per mode */}
+          {/* ── Manual mode ── */}
           {phoneMode === "manual" ? (
             <div className="space-y-4">
               <div className="flex flex-col items-center gap-3">
@@ -539,9 +569,9 @@ export default function Campaign() {
                     const selectedCount = list.phones.filter((c) => selectedPhones.has(c.number)).length;
 
                     return (
-                      <div key={list.name} className="rounded-lg border-2 border-border overflow-hidden transition-all">
-                        {/* List header */}
-                        <div className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                      <div key={list.name} className="rounded-lg border-2 border-border overflow-hidden">
+                        {/* List header row */}
+                        <div className={`flex items-center gap-3 px-3 py-2.5 ${
                           checkState !== "none" ? "bg-primary/5 border-b border-primary/10" : "hover:bg-muted/40"
                         }`}>
                           <Checkbox
@@ -551,13 +581,12 @@ export default function Campaign() {
                           />
                           <button
                             onClick={() => toggleExpandList(list.name)}
-                            className="flex-1 flex items-center gap-2 text-right min-w-0"
+                            className="flex-1 flex items-center gap-2 min-w-0"
                           >
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                            )}
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                            }
                             <span className="font-medium text-sm flex-1 text-right truncate">{list.name}</span>
                             <Badge variant={checkState !== "none" ? "default" : "secondary"} className="text-xs shrink-0">
                               {checkState !== "none" ? `${selectedCount} / ` : ""}{list.phones.length}
@@ -565,7 +594,7 @@ export default function Campaign() {
                           </button>
                         </div>
 
-                        {/* Individual contacts */}
+                        {/* Individual contact rows */}
                         {isExpanded && list.phones.length > 0 && (
                           <div className="divide-y divide-border/50 max-h-56 overflow-y-auto">
                             {list.phones.map((contact) => {
@@ -573,7 +602,7 @@ export default function Campaign() {
                               return (
                                 <label
                                   key={contact.number}
-                                  className={`flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors ${
+                                  className={`flex items-center gap-3 px-4 py-2 cursor-pointer select-none ${
                                     isChecked ? "bg-primary/5" : "hover:bg-muted/30"
                                   }`}
                                 >
@@ -647,7 +676,7 @@ export default function Campaign() {
                 <span className="text-xs font-medium text-muted-foreground">التوقيع</span>
                 {signature.trim() && (
                   <button
-                    onClick={() => setSignatureEnabled((v) => !v)}
+                    onClick={toggleSignature}
                     className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                       signatureEnabled
                         ? "bg-primary/10 text-primary border-primary/30"
@@ -676,10 +705,16 @@ export default function Campaign() {
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none outline-none focus:border-primary transition-colors"
                 />
                 <div className="flex gap-2">
-                  <button onClick={saveSignature} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
+                  <button
+                    onClick={saveSignature}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
+                  >
                     <Check className="h-3 w-3" />حفظ
                   </button>
-                  <button onClick={cancelEditSignature} className="px-3 py-1.5 rounded-lg border text-xs text-muted-foreground hover:bg-muted transition-colors">
+                  <button
+                    onClick={() => setIsEditingSignature(false)}
+                    className="px-3 py-1.5 rounded-lg border text-xs text-muted-foreground hover:bg-muted transition-colors"
+                  >
                     إلغاء
                   </button>
                 </div>
@@ -806,12 +841,7 @@ export default function Campaign() {
         </div>
         <Button
           size="lg"
-          disabled={
-            phones.length === 0 ||
-            !message.trim() ||
-            isSending ||
-            anyUploading
-          }
+          disabled={phones.length === 0 || !message.trim() || isSending || anyUploading}
           onClick={() => setIsConfirmOpen(true)}
           className="gap-2"
         >
@@ -823,7 +853,7 @@ export default function Campaign() {
         </Button>
       </div>
 
-      {/* Confirm Dialog */}
+      {/* ─── Confirm Dialog ─── */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -855,7 +885,7 @@ export default function Campaign() {
         </DialogContent>
       </Dialog>
 
-      {/* Save List Dialog */}
+      {/* ─── Save List Dialog ─── */}
       <Dialog open={isSaveListOpen} onOpenChange={setIsSaveListOpen}>
         <DialogContent>
           <DialogHeader>
@@ -867,6 +897,7 @@ export default function Campaign() {
               <Input
                 value={listName}
                 onChange={(e) => setListName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleSaveList(); }}
                 placeholder="مثال: عملاء فبراير"
                 className="mt-1.5"
                 autoFocus

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSettings,
@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   CheckCircle2,
-  XCircle,
   Loader2,
   ExternalLink,
   Github,
@@ -55,13 +54,25 @@ export default function Settings() {
   const saveMutation = useSaveSettings();
   const logoutMutation = useBaileysLogout();
 
-  // Poll Baileys status every 2s when not connected
+  // Poll Baileys status: every 2s when not connected, every 10s when connected
   const { data: baileysStatus, isFetching: statusFetching } = useGetBaileysStatus({
     query: {
       refetchInterval: (q) => (q.state.data?.connected ? 10_000 : 2_000),
       queryKey: getGetBaileysStatusQueryKey(),
     },
   });
+
+  // When WhatsApp connects, invalidate settings so the rest of the app updates
+  const prevConnected = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    const connected = baileysStatus?.connected;
+    if (connected !== prevConnected.current) {
+      prevConnected.current = connected;
+      if (connected) {
+        void queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      }
+    }
+  }, [baileysStatus?.connected, queryClient]);
 
   const [githubForm, setGithubForm] = useState({ githubToken: "", gistId: "" });
 
@@ -76,16 +87,16 @@ export default function Settings() {
     if (githubForm.githubToken) data.githubToken = githubForm.githubToken;
     if (githubForm.gistId !== undefined) data.gistId = githubForm.gistId;
     await saveMutation.mutateAsync({ data });
-    queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+    await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
     toast({ title: "تم حفظ بيانات GitHub" });
   }
 
   async function handleLogout() {
     try {
       await logoutMutation.mutateAsync(undefined as unknown as void);
-      queryClient.invalidateQueries({ queryKey: getGetBaileysStatusQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
-      toast({ title: "تم قطع الاتصال بـ WhatsApp" });
+      await queryClient.invalidateQueries({ queryKey: getGetBaileysStatusQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      toast({ title: "تم قطع الاتصال — جاري عرض QR جديد..." });
     } catch (e: unknown) {
       toast({ title: "فشل قطع الاتصال", description: (e as Error)?.message, variant: "destructive" });
     }
@@ -124,7 +135,6 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="space-y-5">
           {isConnected ? (
-            /* Connected state */
             <div className="space-y-4">
               <div className="flex items-start gap-3 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
                 <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
@@ -150,7 +160,6 @@ export default function Settings() {
               </Button>
             </div>
           ) : (
-            /* Not connected — show QR */
             <div className="space-y-4">
               <div className="space-y-2">
                 <p className="text-sm font-medium">خطوات الاتصال:</p>
@@ -187,7 +196,7 @@ export default function Settings() {
                     </p>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center gap-3 py-8">
+                  <div className="flex flex-col items-center gap-3 py-4">
                     <div className="w-52 h-52 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
                       {statusFetching ? (
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/40" />
@@ -204,7 +213,6 @@ export default function Settings() {
               </div>
 
               <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">
-                <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-0" />
                 <span>
                   <strong>ملاحظة:</strong> Baileys بيشغل WhatsApp Web — زي ما بتفتحه في المتصفح. مفيش حدود على عدد الرسائل ومش محتاج Business API.
                 </span>
