@@ -4,7 +4,9 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
-import { mkdir, rm } from "fs/promises";
+import { mkdir, rm, writeFile, unlink } from "fs/promises";
+import { randomUUID } from "crypto";
+import os from "os";
 import path from "path";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -100,16 +102,37 @@ class BaileysService {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
-    const jid = `${phone}@s.whatsapp.net`;
-    await this.sock.sendMessage(jid, { image: buffer, mimetype });
+    const ext = mimetype === "image/png" ? "png" : mimetype === "image/webp" ? "webp" : "jpg";
+    const tmpPath = path.join(os.tmpdir(), `wa-img-${randomUUID()}.${ext}`);
+    try {
+      await writeFile(tmpPath, buffer);
+      const jid = `${phone}@s.whatsapp.net`;
+      await this.sock.sendMessage(jid, {
+        image: { url: `file://${tmpPath}` },
+        mimetype,
+      });
+    } finally {
+      await unlink(tmpPath).catch(() => {});
+    }
   }
 
   async sendVideo(phone: string, buffer: Buffer, mimetype: string) {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
-    const jid = `${phone}@s.whatsapp.net`;
-    await this.sock.sendMessage(jid, { video: buffer, mimetype });
+    const ext = mimetype === "video/3gpp" ? "3gp" : "mp4";
+    const tmpPath = path.join(os.tmpdir(), `wa-vid-${randomUUID()}.${ext}`);
+    try {
+      await writeFile(tmpPath, buffer);
+      const jid = `${phone}@s.whatsapp.net`;
+      await this.sock.sendMessage(jid, {
+        video: { url: `file://${tmpPath}` },
+        mimetype,
+        gifPlayback: false,
+      });
+    } finally {
+      await unlink(tmpPath).catch(() => {});
+    }
   }
 
   async logout() {

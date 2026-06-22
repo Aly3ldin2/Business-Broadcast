@@ -38,7 +38,7 @@ router.post("/send", async (req, res) => {
       // 2. Send each media item
       if (mediaItems && mediaItems.length > 0) {
         for (const item of mediaItems) {
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 800));
 
           if (item.id) {
             const stored = mediaStore.get(item.id);
