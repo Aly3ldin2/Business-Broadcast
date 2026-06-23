@@ -102,18 +102,9 @@ class BaileysService {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
-    const ext = mimetype === "image/png" ? "png" : mimetype === "image/webp" ? "webp" : "jpg";
-    const tmpPath = path.join(os.tmpdir(), `wa-img-${randomUUID()}.${ext}`);
-    try {
-      await writeFile(tmpPath, buffer);
-      const jid = `${phone}@s.whatsapp.net`;
-      await this.sock.sendMessage(jid, {
-        image: { url: `file://${tmpPath}` },
-        mimetype,
-      });
-    } finally {
-      await unlink(tmpPath).catch(() => {});
-    }
+    const jid = `${phone}@s.whatsapp.net`;
+    // Pass buffer directly — Baileys handles image buffers natively
+    await this.sock.sendMessage(jid, { image: buffer, mimetype });
   }
 
   async sendVideo(phone: string, buffer: Buffer, mimetype: string) {
@@ -125,8 +116,9 @@ class BaileysService {
     try {
       await writeFile(tmpPath, buffer);
       const jid = `${phone}@s.whatsapp.net`;
+      // Use absolute local path (no file:// prefix) — Baileys reads local paths via fs
       await this.sock.sendMessage(jid, {
-        video: { url: `file://${tmpPath}` },
+        video: { url: tmpPath },
         mimetype,
         gifPlayback: false,
       });

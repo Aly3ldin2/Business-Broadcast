@@ -2,6 +2,7 @@ import { Router } from "express";
 import { baileysService } from "../services/baileys";
 import { SendCampaignBody } from "@workspace/api-zod";
 import { mediaStore } from "./media";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -66,6 +67,7 @@ router.post("/send", async (req, res) => {
       sent++;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "فشل الإرسال";
+      logger.error({ phone, err: e }, `campaign send failed: ${msg}`);
       results.push({ phone, success: false, error: msg });
       failed++;
     }
