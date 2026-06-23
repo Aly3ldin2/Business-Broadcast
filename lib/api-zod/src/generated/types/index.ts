@@ -6,18 +6,26 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './authorizationSessionHeaderParameter';
+export * from './authUser';
+export * from './authUserEnvelope';
 export * from './baileysLogoutResult';
 export * from './baileysStatus';
+export * from './beginBrowserLoginParams';
 export * from './campaignInput';
 export * from './campaignResult';
 export * from './contact';
+export * from './errorEnvelope';
 export * from './gistData';
 export * from './gistSaveResult';
 export * from './healthStatus';
+export * from './logoutSuccess';
 export * from './mediaItem';
 export * from './mediaItemType';
 export * from './mediaUploadResult';
 export * from './messageResult';
+export * from './mobileTokenExchangeRequest';
+export * from './mobileTokenExchangeSuccess';
 export * from './phoneList';
 export * from './settings';
 export * from './settingsInput';

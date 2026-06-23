@@ -1,16 +1,22 @@
 import { Router } from "express";
-import { baileysService } from "../services/baileys";
+import { baileysServiceManager } from "../services/baileysManager";
 
 const router = Router();
 
-router.get("/status", (_req, res) => {
-  const status = baileysService.getStatus();
+function getUserId(req: Parameters<Parameters<typeof router.get>[1]>[0]): string {
+  return req.isAuthenticated() ? req.user.id : "default";
+}
+
+router.get("/status", (req, res) => {
+  const userId = getUserId(req);
+  const status = baileysServiceManager.get(userId).getStatus();
   return res.json({ connected: status.connected, qr: status.qr });
 });
 
-router.post("/logout", async (_req, res) => {
+router.post("/logout", async (req, res) => {
+  const userId = getUserId(req);
   try {
-    await baileysService.logout();
+    await baileysServiceManager.get(userId).logout();
     return res.json({ success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Logout failed";

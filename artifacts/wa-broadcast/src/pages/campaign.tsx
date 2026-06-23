@@ -315,7 +315,10 @@ export default function Campaign() {
     .filter((m) => !!m.waMediaId)
     .map((m) => ({ type: m.type, id: m.waMediaId!, url: null }));
   const anyUploading = mediaItems.some((m) => m.uploading);
-  const totalMessages = phones.length > 0 ? phones.length * (1 + readyMedia.length) : 0;
+  const hasContent = fullMessage.trim().length > 0 || readyMedia.length > 0;
+  const totalMessages = phones.length > 0
+    ? phones.length * Math.max(readyMedia.length, fullMessage.trim() ? 1 : 0)
+    : 0;
 
   async function handleSend() {
     setIsSending(true);
@@ -846,7 +849,7 @@ export default function Campaign() {
         </div>
         <Button
           size="lg"
-          disabled={phones.length === 0 || !message.trim() || isSending || anyUploading}
+          disabled={phones.length === 0 || !hasContent || isSending || anyUploading}
           onClick={() => setIsConfirmOpen(true)}
           className="gap-2"
         >

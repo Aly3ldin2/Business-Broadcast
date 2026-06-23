@@ -21,12 +21,12 @@ export const HealthCheckResponse = zod.object({
  */
 export const SendCampaignBody = zod.object({
   "phones": zod.array(zod.string()).describe('List of phone numbers in international format (e.g. 201012345678)'),
-  "message": zod.string().describe('The message text'),
+  "message": zod.string().optional().describe('Optional message text. Sent as caption alongside media, or as standalone text if no media.'),
   "mediaItems": zod.array(zod.object({
   "url": zod.string().nullish().describe('Public URL for the media'),
   "id": zod.string().nullish().describe('Local media file ID (from upload endpoint)'),
   "type": zod.enum(['image', 'video'])
-})).optional().describe('Optional list of images\/videos to send')
+})).optional().describe('Optional list of images\/videos to send (appear above text as caption)')
 })
 
 export const SendCampaignResponse = zod.object({
@@ -113,6 +113,63 @@ export const GetBaileysStatusResponse = zod.object({
  * @summary Disconnect and clear WhatsApp session
  */
 export const BaileysLogoutResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get the currently authenticated user
+ */
+export const GetCurrentAuthUserHeader = zod.object({
+  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+export const GetCurrentAuthUserResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string().email().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Start the browser OIDC login flow
+ */
+export const BeginBrowserLoginQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+
+/**
+ * @summary Exchange a mobile OIDC code for a session token
+ */
+
+
+
+
+
+
+
+export const ExchangeMobileAuthorizationCodeBody = zod.object({
+  "code": zod.string().min(1),
+  "code_verifier": zod.string().min(1),
+  "redirect_uri": zod.string().url().min(1),
+  "state": zod.string().min(1),
+  "nonce": zod.string().min(1).optional()
+})
+
+export const ExchangeMobileAuthorizationCodeResponse = zod.object({
+  "token": zod.string()
+})
+
+
+/**
+ * @summary Delete a mobile session token
+ */
+export const LogoutMobileSessionResponse = zod.object({
   "success": zod.boolean()
 })
 

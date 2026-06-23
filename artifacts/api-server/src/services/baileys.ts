@@ -11,29 +11,33 @@ import path from "path";
 import pino from "pino";
 import QRCode from "qrcode";
 
-const AUTH_DIR = path.join(process.cwd(), ".baileys_auth");
+const AUTH_BASE = path.join(process.cwd(), ".baileys_auth");
 const silentLogger = pino({ level: "silent" });
 
-class BaileysService {
+export class BaileysService {
   private sock: ReturnType<typeof makeWASocket> | null = null;
   private _qr: string | null = null;
   private _connected = false;
   private _initializing = false;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private authDir: string;
+
+  constructor(private userId: string) {
+    this.authDir = path.join(AUTH_BASE, userId);
+  }
 
   async initialize() {
     if (this._initializing) return;
     this._initializing = true;
 
-    // Clear any pending reconnect
     if (this._reconnectTimer) {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = null;
     }
 
     try {
-      await mkdir(AUTH_DIR, { recursive: true });
-      const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+      await mkdir(this.authDir, { recursive: true });
+      const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
       const { version } = await fetchLatestBaileysVersion();
 
       const sock = makeWASocket({
@@ -48,7 +52,6 @@ class BaileysService {
       this.sock = sock;
 
       sock.ev.on("connection.update", async (update) => {
-        // If this socket was replaced (logout), ignore stale events
         if (this.sock !== sock) return;
 
         const { connection, lastDisconnect, qr } = update;
@@ -69,7 +72,6 @@ class BaileysService {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
           if (!isLoggedOut) {
-            // Auto-reconnect with backoff
             this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
           }
         } else if (connection === "open") {
@@ -98,16 +100,19 @@ class BaileysService {
     await this.sock.sendMessage(jid, { text });
   }
 
-  async sendImage(phone: string, buffer: Buffer, mimetype: string) {
+  async sendImage(phone: string, buffer: Buffer, mimetype: string, caption?: string) {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
     const jid = `${phone}@s.whatsapp.net`;
-    // Pass buffer directly — Baileys handles image buffers natively
-    await this.sock.sendMessage(jid, { image: buffer, mimetype });
+    await this.sock.sendMessage(jid, {
+      image: buffer,
+      mimetype,
+      ...(caption ? { caption } : {}),
+    });
   }
 
-  async sendVideo(phone: string, buffer: Buffer, mimetype: string) {
+  async sendVideo(phone: string, buffer: Buffer, mimetype: string, caption?: string) {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
@@ -116,11 +121,11 @@ class BaileysService {
     try {
       await writeFile(tmpPath, buffer);
       const jid = `${phone}@s.whatsapp.net`;
-      // Use absolute local path (no file:// prefix) — Baileys reads local paths via fs
       await this.sock.sendMessage(jid, {
         video: { url: tmpPath },
         mimetype,
         gifPlayback: false,
+        ...(caption ? { caption } : {}),
       });
     } finally {
       await unlink(tmpPath).catch(() => {});
@@ -128,7 +133,6 @@ class BaileysService {
   }
 
   async logout() {
-    // Capture and replace socket reference first so stale events are ignored
     const sock = this.sock;
     this.sock = null;
     this._connected = false;
@@ -145,11 +149,12 @@ class BaileysService {
       try { await sock.logout(); } catch { /* ignore */ }
     }
 
-    await rm(AUTH_DIR, { recursive: true, force: true });
+    await rm(this.authDir, { recursive: true, force: true });
 
     // Re-initialize immediately so a fresh QR appears
     void this.initialize();
   }
 }
 
-export const baileysService = new BaileysService();
+// Keep backward-compatible singleton for legacy imports
+export const baileysService = new BaileysService("default");

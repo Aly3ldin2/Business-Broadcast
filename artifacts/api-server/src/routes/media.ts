@@ -9,7 +9,7 @@ export const mediaStore = new Map<string, { buffer: Buffer; mimetype: string }>(
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 64 * 1024 * 1024 }, // 64MB max
+  limits: { fileSize: 300 * 1024 * 1024 }, // 300MB — supports up to ~5 min video
   fileFilter: (_req, file, cb) => {
     const allowed = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/3gpp"];
     if (allowed.includes(file.mimetype)) cb(null, true);

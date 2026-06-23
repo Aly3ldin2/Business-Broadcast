@@ -10,8 +10,8 @@ import type { MediaItem } from './mediaItem';
 export interface CampaignInput {
   /** List of phone numbers in international format (e.g. 201012345678) */
   phones: string[];
-  /** The message text */
-  message: string;
-  /** Optional list of images/videos to send */
+  /** Optional message text. Sent as caption alongside media, or as standalone text if no media. */
+  message?: string;
+  /** Optional list of images/videos to send (appear above text as caption) */
   mediaItems?: MediaItem[];
 }
