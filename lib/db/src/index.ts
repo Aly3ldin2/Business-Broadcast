@@ -1,16 +1,41 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+import { DatabaseSync } from "node:sqlite";
+import { drizzle } from "drizzle-orm/sqlite-proxy";
+import { mkdirSync, existsSync } from "fs";
+import { dirname, resolve } from "path";
+import { runMigrations } from "./migrate";
 import * as schema from "./schema";
 
-const { Pool } = pg;
-
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+const dbPath = resolve(process.env.DATABASE_PATH ?? "app.db");
+const dir = dirname(dbPath);
+if (dir && dir !== "." && !existsSync(dir)) {
+  mkdirSync(dir, { recursive: true });
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+const sqlite = new DatabaseSync(dbPath);
+sqlite.exec("PRAGMA journal_mode = WAL");
+sqlite.exec("PRAGMA foreign_keys = ON");
+
+// Auto-create all tables on first run
+runMigrations(sqlite);
+
+export const db = drizzle(
+  async (sql, params, method) => {
+    try {
+      const stmt = sqlite.prepare(sql);
+      if (method === "run") {
+        stmt.run(...(params as unknown[]));
+        return { rows: [] };
+      }
+      const rows = (stmt.all(...(params as unknown[])) as Record<string, unknown>[]).map(
+        (row) => Object.values(row),
+      );
+      return { rows };
+    } catch (e) {
+      console.error("SQLite error:", e, "\nSQL:", sql, "\nParams:", params);
+      throw e;
+    }
+  },
+  { schema },
+);
 
 export * from "./schema";
