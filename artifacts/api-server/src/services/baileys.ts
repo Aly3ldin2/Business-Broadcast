@@ -11,7 +11,7 @@ import path from "path";
 import pino from "pino";
 import QRCode from "qrcode";
 
-const AUTH_BASE = path.join(process.cwd(), ".baileys_auth");
+const AUTH_BASE = process.env.BAILEYS_AUTH_PATH ?? path.join(process.cwd(), ".baileys_auth");
 const silentLogger = pino({ level: "silent" });
 
 export class BaileysService {

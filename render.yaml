@@ -1,0 +1,32 @@
+databases:
+  - name: whatsapp-broadcast-db
+    databaseName: wa_broadcast
+    user: wa_broadcast
+    plan: free
+
+services:
+  - type: web
+    name: whatsapp-broadcast
+    runtime: node
+    plan: starter
+    buildCommand: npm install -g pnpm && pnpm install && BASE_PATH=/ pnpm --filter @workspace/wa-broadcast run build && pnpm --filter @workspace/api-server run build
+    startCommand: node artifacts/api-server/dist/index.mjs
+    disk:
+      name: baileys-sessions
+      mountPath: /data/baileys
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BASE_PATH
+        value: /
+      - key: BAILEYS_AUTH_PATH
+        value: /data/baileys/.baileys_auth
+      - key: DATABASE_URL
+        fromDatabase:
+          name: whatsapp-broadcast-db
+          property: connectionString
+      - key: ALLOWED_ORIGIN
+        sync: false
