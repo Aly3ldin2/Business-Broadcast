@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { type Request, type Response } from "express";
-import { db, sessionsTable, appUsersTable } from "@workspace/db";
+import { db, sessionsTable, appUsersTable, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
 
@@ -25,7 +25,6 @@ export async function checkCredentials(username: string, password: string): Prom
     .limit(1);
 
   if (!existing) {
-    // First time this username is used — create the account and ask user to re-login
     const passwordHash = await bcrypt.hash(password, 10);
     await db.insert(appUsersTable).values({ username, passwordHash });
     return { status: "first_login_registered" };
@@ -54,7 +53,6 @@ export async function changeCredentials(
   const [existing] = await db.select().from(appUsersTable).where(eq(appUsersTable.id, userId)).limit(1);
   if (!existing) return { success: false, error: "المستخدم غير موجود" };
 
-  // Check if new username is taken by another user
   if (newUsername !== existing.username) {
     const [taken] = await db.select().from(appUsersTable).where(eq(appUsersTable.username, newUsername)).limit(1);
     if (taken) return { success: false, error: "اسم المستخدم مستخدم بالفعل" };
@@ -67,6 +65,57 @@ export async function changeCredentials(
     .where(eq(appUsersTable.id, userId));
 
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Forgot password — uses GitHub Gist token as recovery key
+// ---------------------------------------------------------------------------
+export async function resetPasswordWithGistToken(
+  username: string,
+  gistToken: string,
+  newPassword: string,
+): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
+  // Find user by username
+  const [appUser] = await db
+    .select()
+    .from(appUsersTable)
+    .where(eq(appUsersTable.username, username))
+    .limit(1);
+
+  if (!appUser) return { success: false, error: "اسم المستخدم غير موجود" };
+
+  // Find their settings and check the gist token
+  const [settings] = await db
+    .select()
+    .from(settingsTable)
+    .where(eq(settingsTable.userId, appUser.id))
+    .limit(1);
+
+  if (!settings?.githubToken) {
+    return { success: false, error: "لا يوجد GitHub Token مسجّل لهذا الحساب — لا يمكن استرداد كلمة المرور" };
+  }
+
+  if (settings.githubToken !== gistToken.trim()) {
+    return { success: false, error: "GitHub Token غير صحيح" };
+  }
+
+  // Token matched — reset the password
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db
+    .update(appUsersTable)
+    .set({ passwordHash })
+    .where(eq(appUsersTable.id, appUser.id));
+
+  return {
+    success: true,
+    user: {
+      id: appUser.id,
+      email: null,
+      firstName: appUser.username,
+      lastName: null,
+      profileImageUrl: null,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

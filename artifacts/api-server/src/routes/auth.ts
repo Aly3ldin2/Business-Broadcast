@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   checkCredentials,
   changeCredentials,
+  resetPasswordWithGistToken,
   createSession,
   clearSession,
   getSessionId,
@@ -30,7 +31,6 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     return;
   }
 
-  // First time — account was just created, log them in immediately
   if (result.status === "first_login_registered") {
     const login = await checkCredentials(username.trim(), password);
     if (login.status !== "ok") {
@@ -81,6 +81,44 @@ router.post("/auth/change-credentials", async (req: Request, res: Response) => {
   await clearSession(res, sid);
 
   res.json({ success: true, message: "تم تغيير بيانات الدخول. سجّل دخولك مجدداً." });
+});
+
+// Forgot password — verified via GitHub Gist token
+router.post("/auth/forgot-password", async (req: Request, res: Response) => {
+  const { username, gistToken, newPassword } = req.body as {
+    username?: string;
+    gistToken?: string;
+    newPassword?: string;
+  };
+
+  if (!username || !gistToken || !newPassword) {
+    res.status(400).json({ error: "جميع الحقول مطلوبة" });
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+    return;
+  }
+
+  const result = await resetPasswordWithGistToken(username.trim(), gistToken.trim(), newPassword);
+
+  if (!result.success || !result.user) {
+    res.status(400).json({ error: result.error ?? "فشل إعادة تعيين كلمة المرور" });
+    return;
+  }
+
+  // Auto-login after reset
+  const sid = await createSession({ user: result.user });
+  res.cookie(SESSION_COOKIE, sid, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_TTL,
+  });
+
+  res.json({ success: true, user: result.user });
 });
 
 export default router;
