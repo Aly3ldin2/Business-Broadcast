@@ -48,12 +48,6 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       });
       const data = (await res.json()) as { user?: AuthUser; firstLogin?: boolean; message?: string; error?: string };
 
-      if (res.status === 201 && data.firstLogin) {
-        toast({ title: "✅ تم إنشاء الحساب!", description: "سجّل دخولك مرة أخرى بنفس البيانات للتأكيد." });
-        setPassword("");
-        return;
-      }
-
       if (!res.ok || data.error) {
         toast({ title: "خطأ", description: data.error ?? "فشل تسجيل الدخول", variant: "destructive" });
         return;

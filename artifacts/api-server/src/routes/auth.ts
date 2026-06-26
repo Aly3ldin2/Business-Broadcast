@@ -23,17 +23,21 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await checkCredentials(username.trim(), password);
+  let result = await checkCredentials(username.trim(), password);
 
   if (result.status === "invalid") {
     res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
     return;
   }
 
+  // First time — account was just created, log them in immediately
   if (result.status === "first_login_registered") {
-    // Account created — tell the client to re-login to confirm credentials
-    res.status(201).json({ firstLogin: true, message: "تم إنشاء الحساب! سجّل دخولك مرة أخرى للتأكيد." });
-    return;
+    const login = await checkCredentials(username.trim(), password);
+    if (login.status !== "ok") {
+      res.status(500).json({ error: "خطأ في إنشاء الجلسة" });
+      return;
+    }
+    result = login;
   }
 
   const sid = await createSession({ user: result.user });
@@ -73,7 +77,6 @@ router.post("/auth/change-credentials", async (req: Request, res: Response) => {
     return;
   }
 
-  // Invalidate current session so user must re-login with new credentials
   const sid = getSessionId(req);
   await clearSession(res, sid);
 
