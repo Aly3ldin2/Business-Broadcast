@@ -1,8 +1,9 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Radio, Moon, Sun } from "lucide-react";
+import { Send, Settings, Users, Menu, Radio, Moon, Sun, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,6 +14,8 @@ const navigation = [
   { name: "Lists", href: "/lists", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
+
+const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
 function useTheme() {
   const [isDark, setIsDark] = useState(() => {
@@ -53,6 +56,32 @@ function ThemeToggle({ isDark, onToggle }: { isDark: boolean; onToggle: () => vo
     >
       {isDark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
       {isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+    </button>
+  );
+}
+
+function LogoutButton() {
+  const qc = useQueryClient();
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogout() {
+    setLoading(true);
+    try {
+      await fetch(`${BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
+      await qc.invalidateQueries({ queryKey: ["auth-user"] });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={() => void handleLogout()}
+      disabled={loading}
+      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
+    >
+      <LogOut className="h-4 w-4 shrink-0" />
+      تسجيل الخروج
     </button>
   );
 }
@@ -99,8 +128,9 @@ export function Layout({ children }: LayoutProps) {
                 <SiteLogo />
               </div>
               <NavLinks />
-              <div className="p-2 border-t">
+              <div className="p-2 border-t space-y-1">
                 <ThemeToggle isDark={isDark} onToggle={toggle} />
+                <LogoutButton />
               </div>
             </SheetContent>
           </Sheet>
@@ -124,9 +154,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <div className="p-2 border-t space-y-1">
             <ThemeToggle isDark={isDark} onToggle={toggle} />
-            <p className="text-xs text-muted-foreground px-3 pb-1">
-              Free & open source
-            </p>
+            <LogoutButton />
           </div>
         </div>
 

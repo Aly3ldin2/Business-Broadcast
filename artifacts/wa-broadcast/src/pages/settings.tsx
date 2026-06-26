@@ -23,6 +23,7 @@ import {
   WifiOff,
   LogOut,
   RefreshCw,
+  KeyRound,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,6 +47,8 @@ const GITHUB_STEPS = [
   },
 ];
 
+const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
+
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -54,7 +57,6 @@ export default function Settings() {
   const saveMutation = useSaveSettings();
   const logoutMutation = useBaileysLogout();
 
-  // Poll Baileys status: every 2s when not connected, every 10s when connected
   const { data: baileysStatus, isFetching: statusFetching } = useGetBaileysStatus({
     query: {
       refetchInterval: (q) => (q.state.data?.connected ? 10_000 : 2_000),
@@ -62,7 +64,6 @@ export default function Settings() {
     },
   });
 
-  // When WhatsApp connects, invalidate settings so the rest of the app updates
   const prevConnected = useRef<boolean | undefined>(undefined);
   useEffect(() => {
     const connected = baileysStatus?.connected;
@@ -75,6 +76,8 @@ export default function Settings() {
   }, [baileysStatus?.connected, queryClient]);
 
   const [githubForm, setGithubForm] = useState({ githubToken: "", gistId: "" });
+  const [credForm, setCredForm] = useState({ newUsername: "", newPassword: "", confirmPassword: "" });
+  const [credLoading, setCredLoading] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -91,7 +94,7 @@ export default function Settings() {
     toast({ title: "تم حفظ بيانات GitHub" });
   }
 
-  async function handleLogout() {
+  async function handleWALogout() {
     try {
       await logoutMutation.mutateAsync(undefined as unknown as void);
       await queryClient.invalidateQueries({ queryKey: getGetBaileysStatusQueryKey() });
@@ -99,6 +102,35 @@ export default function Settings() {
       toast({ title: "تم قطع الاتصال — جاري عرض QR جديد..." });
     } catch (e: unknown) {
       toast({ title: "فشل قطع الاتصال", description: (e as Error)?.message, variant: "destructive" });
+    }
+  }
+
+  async function handleChangeCredentials(e: React.FormEvent) {
+    e.preventDefault();
+    if (!credForm.newUsername.trim() || !credForm.newPassword) return;
+    if (credForm.newPassword !== credForm.confirmPassword) {
+      toast({ title: "كلمتا المرور غير متطابقتين", variant: "destructive" });
+      return;
+    }
+    setCredLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/auth/change-credentials`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newUsername: credForm.newUsername.trim(), newPassword: credForm.newPassword }),
+      });
+      const data = (await res.json()) as { success?: boolean; message?: string; error?: string };
+      if (!res.ok || data.error) {
+        toast({ title: "خطأ", description: data.error ?? "فشل تغيير البيانات", variant: "destructive" });
+        return;
+      }
+      toast({ title: "✅ تم تغيير بيانات الدخول", description: "سجّل دخولك مجدداً بالبيانات الجديدة." });
+      await queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setCredLoading(false);
     }
   }
 
@@ -113,6 +145,65 @@ export default function Settings() {
           اربط WhatsApp عن طريق Baileys وأضف GitHub لحفظ قوائم الأرقام
         </p>
       </div>
+
+      {/* Change Credentials Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            تغيير اسم المستخدم وكلمة المرور
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={(e) => void handleChangeCredentials(e)} className="space-y-4">
+            <div>
+              <Label>اسم المستخدم الجديد</Label>
+              <Input
+                dir="ltr"
+                value={credForm.newUsername}
+                onChange={(e) => setCredForm({ ...credForm, newUsername: e.target.value })}
+                placeholder="اكتب اسم المستخدم الجديد"
+                className="mt-1.5"
+                disabled={credLoading}
+              />
+            </div>
+            <div>
+              <Label>كلمة المرور الجديدة</Label>
+              <Input
+                type="password"
+                dir="ltr"
+                value={credForm.newPassword}
+                onChange={(e) => setCredForm({ ...credForm, newPassword: e.target.value })}
+                placeholder="••••••••"
+                className="mt-1.5"
+                disabled={credLoading}
+              />
+            </div>
+            <div>
+              <Label>تأكيد كلمة المرور</Label>
+              <Input
+                type="password"
+                dir="ltr"
+                value={credForm.confirmPassword}
+                onChange={(e) => setCredForm({ ...credForm, confirmPassword: e.target.value })}
+                placeholder="••••••••"
+                className="mt-1.5"
+                disabled={credLoading}
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={credLoading || !credForm.newUsername.trim() || !credForm.newPassword || !credForm.confirmPassword}
+            >
+              {credLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
+              حفظ بيانات الدخول
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              بعد الحفظ ستُسجَّل خارجاً وتحتاج تدخل بالبيانات الجديدة.
+            </p>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* WhatsApp / Baileys Section */}
       <Card>
@@ -147,7 +238,7 @@ export default function Settings() {
               </div>
               <Button
                 variant="outline"
-                onClick={handleLogout}
+                onClick={() => void handleWALogout()}
                 disabled={logoutMutation.isPending}
                 className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
@@ -302,7 +393,7 @@ export default function Settings() {
                   className="mt-1.5 font-mono text-sm"
                 />
               </div>
-              <Button onClick={handleSaveGitHub} disabled={saveMutation.isPending}>
+              <Button onClick={() => void handleSaveGitHub()} disabled={saveMutation.isPending}>
                 {saveMutation.isPending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (

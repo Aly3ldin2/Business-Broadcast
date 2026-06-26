@@ -1,6 +1,7 @@
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { type Request, type Response } from "express";
-import { db, sessionsTable } from "@workspace/db";
+import { db, sessionsTable, appUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
 
@@ -11,23 +12,61 @@ export interface SessionData {
   user: AuthUser;
 }
 
-// ---------------------------------------------------------------------------
-// Credential check — reads AUTH_USERNAME / AUTH_PASSWORD from env
-// Falls back to "admin" / "admin" so the app works out of the box
-// ---------------------------------------------------------------------------
-export function checkCredentials(username: string, password: string): AuthUser | null {
-  const expectedUsername = process.env.AUTH_USERNAME ?? "admin";
-  const expectedPassword = process.env.AUTH_PASSWORD ?? "admin";
+export type LoginResult =
+  | { status: "ok"; user: AuthUser }
+  | { status: "first_login_registered" }
+  | { status: "invalid" };
 
-  if (username !== expectedUsername || password !== expectedPassword) return null;
+export async function checkCredentials(username: string, password: string): Promise<LoginResult> {
+  const [existing] = await db
+    .select()
+    .from(appUsersTable)
+    .where(eq(appUsersTable.username, username))
+    .limit(1);
+
+  if (!existing) {
+    // First time this username is used — create the account and ask user to re-login
+    const passwordHash = await bcrypt.hash(password, 10);
+    await db.insert(appUsersTable).values({ username, passwordHash });
+    return { status: "first_login_registered" };
+  }
+
+  const valid = await bcrypt.compare(password, existing.passwordHash);
+  if (!valid) return { status: "invalid" };
 
   return {
-    id: username,
-    email: null,
-    firstName: username,
-    lastName: null,
-    profileImageUrl: null,
+    status: "ok",
+    user: {
+      id: existing.id,
+      email: null,
+      firstName: existing.username,
+      lastName: null,
+      profileImageUrl: null,
+    },
   };
+}
+
+export async function changeCredentials(
+  userId: string,
+  newUsername: string,
+  newPassword: string,
+): Promise<{ success: boolean; error?: string }> {
+  const [existing] = await db.select().from(appUsersTable).where(eq(appUsersTable.id, userId)).limit(1);
+  if (!existing) return { success: false, error: "المستخدم غير موجود" };
+
+  // Check if new username is taken by another user
+  if (newUsername !== existing.username) {
+    const [taken] = await db.select().from(appUsersTable).where(eq(appUsersTable.username, newUsername)).limit(1);
+    if (taken) return { success: false, error: "اسم المستخدم مستخدم بالفعل" };
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db
+    .update(appUsersTable)
+    .set({ username: newUsername, passwordHash })
+    .where(eq(appUsersTable.id, userId));
+
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------

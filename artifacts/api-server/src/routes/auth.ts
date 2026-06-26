@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   checkCredentials,
+  changeCredentials,
   createSession,
   clearSession,
   getSessionId,
@@ -22,13 +23,20 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     return;
   }
 
-  const user = checkCredentials(username.trim(), password);
-  if (!user) {
+  const result = await checkCredentials(username.trim(), password);
+
+  if (result.status === "invalid") {
     res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
     return;
   }
 
-  const sid = await createSession({ user });
+  if (result.status === "first_login_registered") {
+    // Account created — tell the client to re-login to confirm credentials
+    res.status(201).json({ firstLogin: true, message: "تم إنشاء الحساب! سجّل دخولك مرة أخرى للتأكيد." });
+    return;
+  }
+
+  const sid = await createSession({ user: result.user });
 
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
@@ -38,13 +46,38 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     maxAge: SESSION_TTL,
   });
 
-  res.json({ user });
+  res.json({ user: result.user });
 });
 
 router.post("/auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
   await clearSession(res, sid);
   res.json({ success: true });
+});
+
+router.post("/auth/change-credentials", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "غير مسموح" });
+    return;
+  }
+
+  const { newUsername, newPassword } = req.body as { newUsername?: string; newPassword?: string };
+  if (!newUsername || !newPassword) {
+    res.status(400).json({ error: "اسم المستخدم وكلمة المرور الجديدة مطلوبان" });
+    return;
+  }
+
+  const result = await changeCredentials(req.user.id, newUsername.trim(), newPassword);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  // Invalidate current session so user must re-login with new credentials
+  const sid = getSessionId(req);
+  await clearSession(res, sid);
+
+  res.json({ success: true, message: "تم تغيير بيانات الدخول. سجّل دخولك مجدداً." });
 });
 
 export default router;
