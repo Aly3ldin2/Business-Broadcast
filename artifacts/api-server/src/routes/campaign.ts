@@ -10,6 +10,8 @@ function getUserId(req: Parameters<Parameters<typeof router.get>[1]>[0]): string
   return req.isAuthenticated() ? req.user.id : "default";
 }
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 router.post("/send", async (req, res) => {
   const parsed = SendCampaignBody.safeParse(req.body);
   if (!parsed.success) {
@@ -26,7 +28,7 @@ router.post("/send", async (req, res) => {
   }
 
   const { phones, message, mediaItems } = parsed.data;
-  const caption = message?.trim() || undefined;
+  const textContent = message?.trim() || undefined;
   const results: { phone: string; success: boolean; error?: string | null }[] = [];
   let sent = 0;
   let failed = 0;
@@ -41,14 +43,14 @@ router.post("/send", async (req, res) => {
 
     try {
       const hasMedia = mediaItems && mediaItems.length > 0;
+      const hasText = !!textContent;
 
       if (hasMedia) {
-        // Send each media item — first item carries the text as caption (appears above text in WA)
+        // Send all media items first (no caption) — they will appear above the text
         for (let i = 0; i < mediaItems.length; i++) {
-          if (i > 0) await new Promise((r) => setTimeout(r, 800));
+          if (i > 0) await delay(800);
 
           const item = mediaItems[i];
-          const itemCaption = i === 0 ? caption : undefined;
           let buf: Buffer | null = null;
           let mime = "image/jpeg";
 
@@ -63,14 +65,20 @@ router.post("/send", async (req, res) => {
 
           if (buf) {
             if (item.type === "image") {
-              await svc.sendImage(phone, buf, mime, itemCaption);
+              await svc.sendImage(phone, buf, mime);
             } else if (item.type === "video") {
-              await svc.sendVideo(phone, buf, mime, itemCaption);
+              await svc.sendVideo(phone, buf, mime);
             }
           }
         }
-      } else if (caption) {
-        await svc.sendText(phone, caption);
+
+        // Send text as a separate message after all media (appears below media in chat)
+        if (hasText) {
+          await delay(600);
+          await svc.sendText(phone, textContent!);
+        }
+      } else if (hasText) {
+        await svc.sendText(phone, textContent!);
       }
 
       results.push({ phone, success: true, error: null });
@@ -82,7 +90,8 @@ router.post("/send", async (req, res) => {
       failed++;
     }
 
-    await new Promise((r) => setTimeout(r, 500));
+    // Delay between recipients to avoid spam detection
+    await delay(600);
   }
 
   return res.json({ total: phones.length, sent, failed, results });

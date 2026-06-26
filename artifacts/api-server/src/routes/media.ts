@@ -7,13 +7,24 @@ const router = Router();
 // In-memory store of uploaded media, keyed by UUID
 export const mediaStore = new Map<string, { buffer: Buffer; mimetype: string }>();
 
+const ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/3gpp",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/webm",
+];
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 300 * 1024 * 1024 }, // 300MB — supports up to ~5 min video
   fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/3gpp"];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("نوع الملف غير مدعوم"));
+    if (ALLOWED_TYPES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("نوع الملف غير مدعوم — مدعوم: صور JPG/PNG/WebP وفيديو MP4/MOV/WebM"));
   },
 });
 

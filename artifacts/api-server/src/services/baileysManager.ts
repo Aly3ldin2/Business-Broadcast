@@ -2,7 +2,8 @@ import { BaileysService } from "./baileys";
 
 /**
  * Manages one BaileysService instance per user.
- * userId "default" is used for unauthenticated single-tenant mode.
+ * Each service auto-initializes on first access so multi-user sessions
+ * start connecting immediately without extra wiring.
  */
 class BaileysServiceManager {
   private services = new Map<string, BaileysService>();
@@ -12,6 +13,8 @@ class BaileysServiceManager {
     if (!svc) {
       svc = new BaileysService(userId);
       this.services.set(userId, svc);
+      // Auto-start the WhatsApp connection for this user
+      void svc.initialize();
     }
     return svc;
   }

@@ -29,11 +29,15 @@ import {
   CheckCircle2, XCircle, Video,
   AlertTriangle, Users, KeyboardIcon,
   Pencil, Check, X, PenLine, UploadCloud, Hash, Plus,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, ImageIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CountryPicker } from "@/components/country-picker";
 import { findCountry, parseRawNumbers, type Country } from "@/data/countries";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
+const MAX_VIDEO_DURATION = 300; // 5 minutes in seconds
+const MAX_FILE_SIZE = 300 * 1024 * 1024; // 300MB
 
 interface SendResult {
   phone: string;
@@ -54,6 +58,7 @@ interface MediaItem {
   waMediaId?: string;
   uploading?: boolean;
   uploadError?: string;
+  durationError?: string;
 }
 
 function StepBadge({ n }: { n: number }) {
@@ -62,6 +67,23 @@ function StepBadge({ n }: { n: number }) {
       {n}
     </span>
   );
+}
+
+function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("فشل قراءة مدة الفيديو"));
+    };
+    video.src = url;
+  });
 }
 
 export default function Campaign() {
@@ -79,11 +101,8 @@ export default function Campaign() {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState("");
 
-  // Lists mode: selected individual phone numbers + expanded lists
   const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
   const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
-
-  // Save-list dialog
   const [isSaveListOpen, setIsSaveListOpen] = useState(false);
   const [listName, setListName] = useState("");
 
@@ -97,9 +116,7 @@ export default function Campaign() {
     if (raw.length < 7) return;
     const dialDigits = country.dialCode.replace("+", "");
     const full = raw.startsWith(dialDigits) ? raw : dialDigits + (raw.startsWith("0") ? raw.slice(1) : raw);
-    if (!phoneList.includes(full)) {
-      setPhoneList((prev) => [...prev, full]);
-    }
+    if (!phoneList.includes(full)) setPhoneList((prev) => [...prev, full]);
     setPhoneInput("");
     phoneInputRef.current?.focus();
   }
@@ -114,22 +131,16 @@ export default function Campaign() {
 
   function addBulk() {
     const nums = parseRawNumbers(bulkText, country.dialCode);
-    if (nums.length === 0) return;
-    setPhoneList((prev) => {
-      const set = new Set(prev);
-      nums.forEach((n) => set.add(n));
-      return Array.from(set);
-    });
+    if (!nums.length) return;
+    setPhoneList((prev) => Array.from(new Set([...prev, ...nums])));
     setBulkText("");
     setShowBulkPaste(false);
   }
 
-  // ── Lists mode helpers ───────────────────────────────────────────
   function togglePhone(num: string) {
     setSelectedPhones((prev) => {
       const next = new Set(prev);
-      if (next.has(num)) next.delete(num);
-      else next.add(num);
+      if (next.has(num)) next.delete(num); else next.add(num);
       return next;
     });
   }
@@ -139,11 +150,8 @@ export default function Campaign() {
     const allSelected = nums.every((n) => selectedPhones.has(n));
     setSelectedPhones((prev) => {
       const next = new Set(prev);
-      if (allSelected) {
-        nums.forEach((n) => next.delete(n));
-      } else {
-        nums.forEach((n) => next.add(n));
-      }
+      if (allSelected) nums.forEach((n) => next.delete(n));
+      else nums.forEach((n) => next.add(n));
       return next;
     });
   }
@@ -151,15 +159,14 @@ export default function Campaign() {
   function toggleExpandList(name: string) {
     setExpandedLists((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      if (next.has(name)) next.delete(name); else next.add(name);
       return next;
     });
   }
 
   function getListCheckState(list: PhoneList): "all" | "some" | "none" {
     const nums = list.phones.map((c) => c.number);
-    if (nums.length === 0) return "none";
+    if (!nums.length) return "none";
     const count = nums.filter((n) => selectedPhones.has(n)).length;
     if (count === 0) return "none";
     if (count === nums.length) return "all";
@@ -200,13 +207,11 @@ export default function Campaign() {
     localStorage.setItem("wa_signature_enabled", String(next));
   }
 
-  const fullMessage =
-    signatureEnabled && signature.trim()
-      ? message + "\n\n" + signature.trim()
-      : message;
+  const fullMessage = signatureEnabled && signature.trim()
+    ? message + "\n\n" + signature.trim()
+    : message;
 
   // ── API hooks ───────────────────────────────────────────────────
-  // Poll settings every 5s when not configured so the banner auto-clears on connect
   const { data: settings } = useGetSettings({
     query: {
       queryKey: getGetSettingsQueryKey(),
@@ -214,7 +219,6 @@ export default function Campaign() {
     },
   });
 
-  // Poll baileys status to keep connection indicator fresh
   const { data: baileysStatus } = useGetBaileysStatus({
     query: {
       queryKey: getGetBaileysStatusQueryKey(),
@@ -222,7 +226,6 @@ export default function Campaign() {
     },
   });
 
-  // When connection status changes, invalidate settings — use ref to avoid re-invalidating every render
   const prevConnected = useRef<boolean | undefined>(undefined);
   useEffect(() => {
     const connected = baileysStatus?.connected;
@@ -247,11 +250,15 @@ export default function Campaign() {
   const isConnected = baileysStatus?.connected ?? settings?.isConfigured ?? false;
 
   // ── Media upload ────────────────────────────────────────────────
-  async function uploadFile(file: File): Promise<string | undefined> {
+  async function uploadFile(file: File): Promise<string> {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/media/upload", { method: "POST", body: formData });
-    const data = await res.json() as { id?: string; error?: string };
+    const res = await fetch(`${BASE}/api/media/upload`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+    const data = (await res.json()) as { id?: string; error?: string };
     if (res.ok && data.id) return data.id;
     throw new Error(data.error ?? "فشل الرفع");
   }
@@ -273,6 +280,33 @@ export default function Campaign() {
     setMediaItems((prev) => [...prev, ...newItems]);
 
     for (const item of newItems) {
+      // Validate file size
+      if (item.file.size > MAX_FILE_SIZE) {
+        setMediaItems((prev) =>
+          prev.map((m) => m.id === item.id
+            ? { ...m, uploading: false, uploadError: "الملف أكبر من 300MB" }
+            : m)
+        );
+        continue;
+      }
+
+      // Validate video duration (max 5 minutes)
+      if (item.type === "video") {
+        try {
+          const duration = await getVideoDuration(item.file);
+          if (duration > MAX_VIDEO_DURATION) {
+            setMediaItems((prev) =>
+              prev.map((m) => m.id === item.id
+                ? { ...m, uploading: false, uploadError: `الفيديو ${Math.round(duration / 60)} دقيقة — الحد الأقصى 5 دقائق` }
+                : m)
+            );
+            continue;
+          }
+        } catch {
+          // Can't read duration — let the backend handle it
+        }
+      }
+
       try {
         const waMediaId = await uploadFile(item.file);
         setMediaItems((prev) =>
@@ -282,7 +316,7 @@ export default function Campaign() {
         setMediaItems((prev) =>
           prev.map((m) =>
             m.id === item.id
-              ? { ...m, uploading: false, uploadError: (e as Error)?.message ?? "خطأ" }
+              ? { ...m, uploading: false, uploadError: (e as Error)?.message ?? "خطأ في الرفع" }
               : m
           )
         );
@@ -314,11 +348,14 @@ export default function Campaign() {
   const readyMedia = mediaItems
     .filter((m) => !!m.waMediaId)
     .map((m) => ({ type: m.type, id: m.waMediaId!, url: null }));
+
   const anyUploading = mediaItems.some((m) => m.uploading);
-  const hasContent = fullMessage.trim().length > 0 || readyMedia.length > 0;
-  const totalMessages = phones.length > 0
-    ? phones.length * Math.max(readyMedia.length, fullMessage.trim() ? 1 : 0)
-    : 0;
+  const hasText = fullMessage.trim().length > 0;
+  const hasContent = hasText || readyMedia.length > 0;
+
+  // Per recipient: (number of media messages) + (1 text message if any)
+  const msgsPerRecipient = readyMedia.length + (hasText ? 1 : 0);
+  const totalMessages = phones.length > 0 ? phones.length * Math.max(msgsPerRecipient, 1) : 0;
 
   async function handleSend() {
     setIsSending(true);
@@ -347,10 +384,9 @@ export default function Campaign() {
     if (!name) return;
     const newPhones = phones.map((n) => ({ number: n, name: null }));
     const idx = existing.findIndex((l) => l.name === name);
-    const newLists =
-      idx >= 0
-        ? existing.map((l, i) => (i === idx ? { ...l, phones: newPhones } : l))
-        : [...existing, { name, phones: newPhones }];
+    const newLists = idx >= 0
+      ? existing.map((l, i) => (i === idx ? { ...l, phones: newPhones } : l))
+      : [...existing, { name, phones: newPhones }];
     try {
       await saveMutation.mutateAsync({ data: { lists: newLists } });
       queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
@@ -371,7 +407,7 @@ export default function Campaign() {
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp"
+        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/3gpp,video/quicktime,video/webm,video/x-msvideo"
         className="hidden"
         onChange={handleFileInput}
       />
@@ -409,40 +445,29 @@ export default function Campaign() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-
           {/* Mode toggle */}
           <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted">
-            <button
-              onClick={() => setPhoneMode("manual")}
-              className={`flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
-                phoneMode === "manual"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <KeyboardIcon className="h-4 w-4" />
-              إدخال يدوي
-            </button>
-            <button
-              onClick={() => setPhoneMode("lists")}
-              className={`flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
-                phoneMode === "lists"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Users className="h-4 w-4" />
-              من القوائم
-              {hasLists && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  phoneMode === "lists"
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted-foreground/15 text-muted-foreground"
-                }`}>
-                  {lists.length}
-                </span>
-              )}
-            </button>
+            {(["manual", "lists"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setPhoneMode(mode)}
+                className={`flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
+                  phoneMode === mode
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {mode === "manual" ? <KeyboardIcon className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                {mode === "manual" ? "إدخال يدوي" : "من القوائم"}
+                {mode === "lists" && hasLists && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    phoneMode === "lists"
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted-foreground/15 text-muted-foreground"
+                  }`}>{lists.length}</span>
+                )}
+              </button>
+            ))}
           </div>
 
           {/* ── Manual mode ── */}
@@ -471,20 +496,16 @@ export default function Campaign() {
                     disabled={phoneInput.replace(/\D/g, "").length < 7}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors active:scale-95"
                   >
-                    <Plus className="h-4 w-4" />
-                    إضافة الرقم
+                    <Plus className="h-4 w-4" />إضافة الرقم
                   </button>
                   <button
                     onClick={() => { setShowBulkPaste((v) => !v); setBulkText(""); }}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   >
-                    <Hash className="h-3.5 w-3.5" />
-                    لصق أرقام متعددة
+                    <Hash className="h-3.5 w-3.5" />لصق أرقام متعددة
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  اضغط Enter أو زرار الإضافة — الأصفار الأولى تُحذف تلقائياً
-                </p>
+                <p className="text-xs text-muted-foreground">اضغط Enter أو زرار الإضافة — الأصفار الأولى تُحذف تلقائياً</p>
               </div>
 
               {showBulkPaste && (
@@ -502,10 +523,9 @@ export default function Campaign() {
                     <button
                       onClick={addBulk}
                       disabled={!bulkText.trim()}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
                     >
-                      <Plus className="h-4 w-4" />
-                      إضافة الكل
+                      <Plus className="h-4 w-4" />إضافة الكل
                     </button>
                     <button
                       onClick={() => { setShowBulkPaste(false); setBulkText(""); }}
@@ -525,20 +545,12 @@ export default function Campaign() {
               {phoneList.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      الأرقام المضافة ({phoneList.length})
-                    </p>
-                    <button onClick={() => setPhoneList([])} className="text-xs text-destructive hover:underline">
-                      مسح الكل
-                    </button>
+                    <p className="text-xs font-medium text-muted-foreground">الأرقام المضافة ({phoneList.length})</p>
+                    <button onClick={() => setPhoneList([])} className="text-xs text-destructive hover:underline">مسح الكل</button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {phoneList.map((num) => (
-                      <span
-                        key={num}
-                        className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-muted border text-xs font-mono"
-                        dir="ltr"
-                      >
+                      <span key={num} className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-muted border text-xs font-mono" dir="ltr">
                         <button
                           onClick={() => removePhone(num)}
                           className="w-4 h-4 rounded-full bg-muted-foreground/20 hover:bg-destructive hover:text-white flex items-center justify-center transition-colors shrink-0"
@@ -553,7 +565,7 @@ export default function Campaign() {
               )}
             </div>
           ) : (
-            /* ── Lists mode with individual checkboxes ── */
+            /* ── Lists mode ── */
             <>
               {!settings?.hasGithubToken ? (
                 <div className="text-center py-8 space-y-2">
@@ -575,10 +587,8 @@ export default function Campaign() {
                     const checkState = getListCheckState(list);
                     const isExpanded = expandedLists.has(list.name);
                     const selectedCount = list.phones.filter((c) => selectedPhones.has(c.number)).length;
-
                     return (
                       <div key={list.name} className="rounded-lg border-2 border-border overflow-hidden">
-                        {/* List header row */}
                         <div className={`flex items-center gap-3 px-3 py-2.5 ${
                           checkState !== "none" ? "bg-primary/5 border-b border-primary/10" : "hover:bg-muted/40"
                         }`}>
@@ -601,56 +611,32 @@ export default function Campaign() {
                             </Badge>
                           </button>
                         </div>
-
-                        {/* Individual contact rows */}
                         {isExpanded && list.phones.length > 0 && (
                           <div className="divide-y divide-border/50 max-h-56 overflow-y-auto">
                             {list.phones.map((contact) => {
                               const isChecked = selectedPhones.has(contact.number);
                               return (
-                                <label
-                                  key={contact.number}
-                                  className={`flex items-center gap-3 px-4 py-2 cursor-pointer select-none ${
-                                    isChecked ? "bg-primary/5" : "hover:bg-muted/30"
-                                  }`}
-                                >
-                                  <Checkbox
-                                    checked={isChecked}
-                                    onCheckedChange={() => togglePhone(contact.number)}
-                                    className="shrink-0"
-                                  />
+                                <label key={contact.number} className={`flex items-center gap-3 px-4 py-2 cursor-pointer select-none ${isChecked ? "bg-primary/5" : "hover:bg-muted/30"}`}>
+                                  <Checkbox checked={isChecked} onCheckedChange={() => togglePhone(contact.number)} className="shrink-0" />
                                   <div className="flex-1 min-w-0">
-                                    {contact.name && (
-                                      <p className="text-sm font-medium truncate">{contact.name}</p>
-                                    )}
-                                    <p className="text-xs font-mono text-muted-foreground" dir="ltr">
-                                      {contact.number}
-                                    </p>
+                                    {contact.name && <p className="text-sm font-medium truncate">{contact.name}</p>}
+                                    <p className="text-xs font-mono text-muted-foreground" dir="ltr">{contact.number}</p>
                                   </div>
                                 </label>
                               );
                             })}
                           </div>
                         )}
-
                         {isExpanded && list.phones.length === 0 && (
                           <p className="text-xs text-muted-foreground text-center py-3">القائمة فاضية</p>
                         )}
                       </div>
                     );
                   })}
-
                   {selectedPhones.size > 0 && (
                     <div className="flex items-center justify-between pt-1">
-                      <p className="text-xs text-muted-foreground">
-                        تم تحديد <strong>{selectedPhones.size}</strong> جهة اتصال
-                      </p>
-                      <button
-                        onClick={() => setSelectedPhones(new Set())}
-                        className="text-xs text-destructive hover:underline"
-                      >
-                        إلغاء التحديد
-                      </button>
+                      <p className="text-xs text-muted-foreground">تم تحديد <strong>{selectedPhones.size}</strong> جهة اتصال</p>
+                      <button onClick={() => setSelectedPhones(new Set())} className="text-xs text-destructive hover:underline">إلغاء التحديد</button>
                     </div>
                   )}
                 </div>
@@ -660,18 +646,19 @@ export default function Campaign() {
         </CardContent>
       </Card>
 
-      {/* ─── Step 2: Message ─── */}
+      {/* ─── Step 2: Message (optional) ─── */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <StepBadge n={2} />الرسالة
+            <StepBadge n={2} />الرسالة النصية
+            <span className="text-xs font-normal text-muted-foreground">(اختياري — تُرسل منفردة أو مع ميديا)</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="اكتب نص الرسالة هنا..."
+            placeholder="اكتب نص الرسالة هنا... (يمكن تركه فارغاً إذا ستُرسل صور أو فيديوهات فقط)"
             rows={5}
             className="resize-none font-medium"
           />
@@ -695,10 +682,7 @@ export default function Campaign() {
                   </button>
                 )}
               </div>
-              <button
-                onClick={startEditSignature}
-                className="text-xs text-primary hover:underline flex items-center gap-1"
-              >
+              <button onClick={startEditSignature} className="text-xs text-primary hover:underline flex items-center gap-1">
                 <Pencil className="h-3 w-3" />تعديل
               </button>
             </div>
@@ -713,16 +697,10 @@ export default function Campaign() {
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none outline-none focus:border-primary transition-colors"
                 />
                 <div className="flex gap-2">
-                  <button
-                    onClick={saveSignature}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
-                  >
+                  <button onClick={saveSignature} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
                     <Check className="h-3 w-3" />حفظ
                   </button>
-                  <button
-                    onClick={() => setIsEditingSignature(false)}
-                    className="px-3 py-1.5 rounded-lg border text-xs text-muted-foreground hover:bg-muted transition-colors"
-                  >
+                  <button onClick={() => setIsEditingSignature(false)} className="px-3 py-1.5 rounded-lg border text-xs text-muted-foreground hover:bg-muted transition-colors">
                     إلغاء
                   </button>
                 </div>
@@ -740,7 +718,8 @@ export default function Campaign() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <StepBadge n={3} />صور وفيديوهات (اختياري)
+            <StepBadge n={3} />صور وفيديوهات
+            <span className="text-xs font-normal text-muted-foreground">(اختياري — تصل فوق النص)</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -758,7 +737,9 @@ export default function Campaign() {
           >
             <UploadCloud className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
             <p className="text-sm text-muted-foreground">اسحب ملفات هنا أو اضغط للاختيار</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">JPG, PNG, WebP, MP4 — حتى 64MB</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              صور: JPG, PNG, WebP, GIF&nbsp;&nbsp;|&nbsp;&nbsp;فيديو: MP4, MOV, WebM (حتى 5 دقائق)
+            </p>
           </div>
 
           {mediaItems.length > 0 && (
@@ -768,34 +749,71 @@ export default function Campaign() {
                   {item.type === "image" ? (
                     <img src={item.preview} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Video className="h-8 w-8 text-muted-foreground/50" />
-                    </div>
+                    <video
+                      src={item.preview}
+                      className="w-full h-full object-cover"
+                      muted
+                      preload="metadata"
+                    />
                   )}
                   <div className="absolute inset-0 bg-black/20" />
+
+                  {/* Type badge */}
+                  <div className="absolute top-1 left-1">
+                    {item.type === "video"
+                      ? <Video className="h-3.5 w-3.5 text-white drop-shadow" />
+                      : <ImageIcon className="h-3.5 w-3.5 text-white drop-shadow" />
+                    }
+                  </div>
+
+                  {/* Remove button */}
                   <button
                     onClick={() => removeItem(item.id)}
                     className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 hover:bg-destructive flex items-center justify-center transition-colors"
                   >
                     <X className="h-3 w-3 text-white" />
                   </button>
+
+                  {/* Uploading overlay */}
                   {item.uploading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                       <Loader2 className="h-5 w-5 text-white animate-spin" />
                     </div>
                   )}
+
+                  {/* Error overlay */}
                   {item.uploadError && (
-                    <div className="absolute bottom-0 inset-x-0 bg-destructive/80 p-1 text-center">
-                      <p className="text-xs text-white truncate">{item.uploadError}</p>
+                    <div className="absolute bottom-0 inset-x-0 bg-destructive/90 p-1 text-center">
+                      <p className="text-xs text-white leading-tight">{item.uploadError}</p>
                     </div>
                   )}
+
+                  {/* Success indicator */}
                   {item.waMediaId && !item.uploading && (
                     <div className="absolute bottom-1 right-1">
-                      <CheckCircle2 className="h-4 w-4 text-green-400" />
+                      <CheckCircle2 className="h-4 w-4 text-green-400 drop-shadow" />
                     </div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Send mode info */}
+          {(hasText || readyMedia.length > 0) && (
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {readyMedia.length > 0 && (
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  {readyMedia.filter(m => m.type === "image").length > 0 && <ImageIcon className="h-3 w-3" />}
+                  {readyMedia.filter(m => m.type === "video").length > 0 && <Video className="h-3 w-3" />}
+                  {readyMedia.length} ملف{readyMedia.length > 1 ? " (تُرسل أولاً)" : " (يُرسل أولاً)"}
+                </span>
+              )}
+              {hasText && (
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted border">
+                  النص {readyMedia.length > 0 ? "(يُرسل بعد الميديا)" : "(فقط)"}
+                </span>
+              )}
             </div>
           )}
         </CardContent>
@@ -807,25 +825,18 @@ export default function Campaign() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               نتائج الإرسال
-              <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">
-                {successCount} نجح
-              </Badge>
-              {failCount > 0 && (
-                <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
-                  {failCount} فشل
-                </Badge>
-              )}
+              <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">{successCount} نجح</Badge>
+              {failCount > 0 && <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">{failCount} فشل</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {sendResults.map((r) => (
                 <div key={r.phone} className="flex items-center gap-2 text-xs py-1 border-b last:border-0">
-                  {r.success ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  ) : (
-                    <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                  )}
+                  {r.success
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    : <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                  }
                   <span className="font-mono" dir="ltr">{r.phone}</span>
                   {r.error && <span className="text-destructive truncate">{r.error}</span>}
                 </div>
@@ -841,7 +852,7 @@ export default function Campaign() {
           {phones.length > 0 ? (
             <span>
               <strong>{phones.length}</strong> جهة اتصال
-              {readyMedia.length > 0 ? ` × ${1 + readyMedia.length} رسالة = ${totalMessages} إجمالي` : ""}
+              {msgsPerRecipient > 1 ? ` × ${msgsPerRecipient} رسائل = ${totalMessages} إجمالي` : ""}
             </span>
           ) : (
             <span>لم تحدد أي أرقام بعد</span>
@@ -853,11 +864,10 @@ export default function Campaign() {
           onClick={() => setIsConfirmOpen(true)}
           className="gap-2"
         >
-          {isSending ? (
-            <><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</>
-          ) : (
-            <><Send className="h-4 w-4" />إرسال</>
-          )}
+          {isSending
+            ? <><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</>
+            : <><Send className="h-4 w-4" />إرسال</>
+          }
         </Button>
       </div>
 
@@ -878,16 +888,33 @@ export default function Campaign() {
                 <p className="text-xs text-muted-foreground mt-1">رسالة إجمالي</p>
               </div>
             </div>
-            <div className="p-3 rounded-lg border bg-muted/30">
-              <p className="text-xs text-muted-foreground mb-1">معاينة الرسالة:</p>
-              <p className="whitespace-pre-wrap text-sm line-clamp-4">{fullMessage}</p>
+
+            {/* What will be sent */}
+            <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">ما سيتم إرساله لكل شخص:</p>
+              {readyMedia.length > 0 && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">١</span>
+                  <span>{readyMedia.length} ملف ميديا (صور/فيديو) — تُرسل أولاً</span>
+                </div>
+              )}
+              {hasText && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="w-4 h-4 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-[10px]">
+                    {readyMedia.length > 0 ? "٢" : "١"}
+                  </span>
+                  <span>رسالة نصية {readyMedia.length > 0 ? "— تُرسل بعد الميديا" : ""}</span>
+                </div>
+              )}
+              {hasText && (
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3 mt-1 border-t pt-2">{fullMessage}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>إلغاء</Button>
-            <Button onClick={handleSend}>
-              <Send className="h-4 w-4 mr-2" />
-              أرسل الآن
+            <Button onClick={() => void handleSend()}>
+              <Send className="h-4 w-4 mr-2" />أرسل الآن
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -911,13 +938,11 @@ export default function Campaign() {
                 autoFocus
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              سيتم حفظ {phones.length} رقم في هذه القائمة
-            </p>
+            <p className="text-xs text-muted-foreground">سيتم حفظ {phones.length} رقم في هذه القائمة</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsSaveListOpen(false)}>إلغاء</Button>
-            <Button onClick={handleSaveList} disabled={!listName.trim() || saveMutation.isPending}>
+            <Button onClick={() => void handleSaveList()} disabled={!listName.trim() || saveMutation.isPending}>
               {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               حفظ
             </Button>
