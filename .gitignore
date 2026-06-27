@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# WhatsApp session files
+.baileys_auth/
