@@ -4,9 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
-import { mkdir, rm, writeFile, unlink } from "fs/promises";
-import { randomUUID } from "crypto";
-import os from "os";
+import { mkdir, rm } from "fs/promises";
 import path from "path";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -92,6 +90,25 @@ export class BaileysService {
     return { connected: this._connected, qr: this._qr };
   }
 
+  /**
+   * Request a pairing code (8-char) for phone-number-based linking.
+   * Must be called while the socket is in QR-waiting state (not yet registered).
+   */
+  async requestPairingCode(phone: string): Promise<string> {
+    if (!this.sock) {
+      throw new Error("Socket not initialized — wait for QR to appear first");
+    }
+    if (this._connected) {
+      throw new Error("Already connected — logout first to re-link");
+    }
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length < 7) {
+      throw new Error("رقم الهاتف غير صالح");
+    }
+    const code = await this.sock.requestPairingCode(cleanPhone);
+    return code ?? "";
+  }
+
   async sendText(phone: string, text: string) {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
@@ -108,6 +125,7 @@ export class BaileysService {
     await this.sock.sendMessage(jid, {
       image: buffer,
       mimetype,
+      fileLength: buffer.length,
       ...(caption ? { caption } : {}),
     });
   }
@@ -116,20 +134,16 @@ export class BaileysService {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
-    const ext = mimetype === "video/3gpp" ? "3gp" : "mp4";
-    const tmpPath = path.join(os.tmpdir(), `wa-vid-${randomUUID()}.${ext}`);
-    try {
-      await writeFile(tmpPath, buffer);
-      const jid = `${phone}@s.whatsapp.net`;
-      await this.sock.sendMessage(jid, {
-        video: { url: tmpPath },
-        mimetype,
-        gifPlayback: false,
-        ...(caption ? { caption } : {}),
-      });
-    } finally {
-      await unlink(tmpPath).catch(() => {});
-    }
+    const jid = `${phone}@s.whatsapp.net`;
+    // Pass the buffer directly — avoids temp-file race conditions that corrupt
+    // large video encryption for files > ~60 seconds.
+    await this.sock.sendMessage(jid, {
+      video: buffer,
+      mimetype,
+      fileLength: buffer.length,
+      gifPlayback: false,
+      ...(caption ? { caption } : {}),
+    });
   }
 
   async logout() {

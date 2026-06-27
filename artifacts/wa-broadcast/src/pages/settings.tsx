@@ -24,6 +24,8 @@ import {
   LogOut,
   RefreshCw,
   KeyRound,
+  QrCode,
+  Hash,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -48,6 +50,8 @@ const GITHUB_STEPS = [
 ];
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
+
+type LinkMode = "qr" | "pairing";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -79,11 +83,24 @@ export default function Settings() {
   const [credForm, setCredForm] = useState({ newUsername: "", newPassword: "", confirmPassword: "" });
   const [credLoading, setCredLoading] = useState(false);
 
+  const [linkMode, setLinkMode] = useState<LinkMode>("qr");
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+
   useEffect(() => {
     if (settings) {
       setGithubForm({ githubToken: "", gistId: settings.gistId ?? "" });
     }
   }, [settings]);
+
+  // Reset pairing state when connected
+  useEffect(() => {
+    if (baileysStatus?.connected) {
+      setPairingCode(null);
+      setPairingPhone("");
+    }
+  }, [baileysStatus?.connected]);
 
   async function handleSaveGitHub() {
     const data: Record<string, string> = {};
@@ -99,9 +116,41 @@ export default function Settings() {
       await logoutMutation.mutateAsync(undefined as unknown as void);
       await queryClient.invalidateQueries({ queryKey: getGetBaileysStatusQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      setPairingCode(null);
+      setPairingPhone("");
       toast({ title: "تم قطع الاتصال — جاري عرض QR جديد..." });
     } catch (e: unknown) {
       toast({ title: "فشل قطع الاتصال", description: (e as Error)?.message, variant: "destructive" });
+    }
+  }
+
+  async function handleRequestPairingCode() {
+    const cleaned = pairingPhone.replace(/\D/g, "");
+    if (cleaned.length < 7) {
+      toast({ title: "أدخل رقم هاتف صالح مع كود الدولة", variant: "destructive" });
+      return;
+    }
+    setPairingLoading(true);
+    setPairingCode(null);
+    try {
+      const res = await fetch(`${BASE}/api/baileys/pair`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleaned }),
+      });
+      const data = (await res.json()) as { code?: string; error?: string };
+      if (!res.ok || data.error) {
+        toast({ title: "فشل طلب الكود", description: data.error ?? "حاول مرة أخرى", variant: "destructive" });
+        return;
+      }
+      // Format as XXXX-XXXX
+      const raw = data.code ?? "";
+      setPairingCode(raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw);
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setPairingLoading(false);
     }
   }
 
@@ -252,56 +301,151 @@ export default function Settings() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">خطوات الاتصال:</p>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">١</span>
-                    <span>افتح WhatsApp على تليفونك</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">٢</span>
-                    <span>اضغط على القائمة (⋮) ثم "الأجهزة المرتبطة"</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">٣</span>
-                    <span>اضغط "ربط جهاز" ثم امسح QR Code التالي</span>
-                  </div>
-                </div>
+              {/* Mode toggle */}
+              <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+                <button
+                  onClick={() => { setLinkMode("qr"); setPairingCode(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    linkMode === "qr"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  QR Code
+                </button>
+                <button
+                  onClick={() => { setLinkMode("pairing"); setPairingCode(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    linkMode === "pairing"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Hash className="h-3.5 w-3.5" />
+                  ربط يدوي (كود)
+                </button>
               </div>
 
               <Separator />
 
-              <div className="flex flex-col items-center gap-4 py-2">
-                {qrCode ? (
-                  <>
-                    <div className="p-3 bg-white rounded-xl border-2 border-border shadow-sm">
-                      <img
-                        src={qrCode}
-                        alt="WhatsApp QR Code"
-                        className="w-52 h-52 object-contain"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center">
-                      QR Code ينتهي بعد دقيقة — بيتجدد تلقائياً
-                    </p>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center gap-3 py-4">
-                    <div className="w-52 h-52 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                      {statusFetching ? (
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/40" />
-                      ) : (
-                        <div className="text-center space-y-2">
-                          <RefreshCw className="h-8 w-8 mx-auto text-muted-foreground/30" />
-                          <p className="text-xs text-muted-foreground">في انتظار QR Code...</p>
+              {linkMode === "qr" ? (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">خطوات الاتصال بـ QR:</p>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      {[
+                        "افتح WhatsApp على تليفونك",
+                        "اضغط على القائمة (⋮) ثم «الأجهزة المرتبطة»",
+                        "اضغط «ربط جهاز» ثم امسح QR Code التالي",
+                      ].map((step, i) => (
+                        <div key={i} className="flex gap-2">
+                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                            {i + 1}
+                          </span>
+                          <span>{step}</span>
                         </div>
-                      )}
+                      ))}
                     </div>
-                    <p className="text-xs text-muted-foreground">جاري الاتصال بـ WhatsApp...</p>
                   </div>
-                )}
-              </div>
+
+                  <div className="flex flex-col items-center gap-4 py-2">
+                    {qrCode ? (
+                      <>
+                        <div className="p-3 bg-white rounded-xl border-2 border-border shadow-sm">
+                          <img
+                            src={qrCode}
+                            alt="WhatsApp QR Code"
+                            className="w-52 h-52 object-contain"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground text-center">
+                          QR Code ينتهي بعد دقيقة — بيتجدد تلقائياً
+                        </p>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 py-4">
+                        <div className="w-52 h-52 rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                          {statusFetching ? (
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/40" />
+                          ) : (
+                            <div className="text-center space-y-2">
+                              <RefreshCw className="h-8 w-8 mx-auto text-muted-foreground/30" />
+                              <p className="text-xs text-muted-foreground">في انتظار QR Code...</p>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">جاري الاتصال بـ WhatsApp...</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">خطوات الربط اليدوي بكود:</p>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      {[
+                        "افتح WhatsApp على تليفونك",
+                        "اضغط القائمة (⋮) ثم «الأجهزة المرتبطة» ثم «ربط جهاز»",
+                        "اضغط «ربط بكود عوضًا عن QR»",
+                        "أدخل رقمك بالكامل مع كود الدولة (مثل: 201012345678)",
+                        "اضغط «طلب الكود» وأدخل الكود الظاهر في WhatsApp",
+                      ].map((step, i) => (
+                        <div key={i} className="flex gap-2">
+                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                            {i + 1}
+                          </span>
+                          <span>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <Label>رقم الهاتف (مع كود الدولة، بدون +)</Label>
+                      <Input
+                        dir="ltr"
+                        type="tel"
+                        value={pairingPhone}
+                        onChange={(e) => { setPairingPhone(e.target.value); setPairingCode(null); }}
+                        placeholder="201012345678"
+                        className="mt-1.5 font-mono"
+                        disabled={pairingLoading}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        مثال: مصر 20 + رقمك، السعودية 966 + رقمك
+                      </p>
+                    </div>
+
+                    <Button
+                      onClick={() => void handleRequestPairingCode()}
+                      disabled={pairingLoading || !pairingPhone.replace(/\D/g, "")}
+                      className="w-full"
+                    >
+                      {pairingLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Hash className="h-4 w-4 mr-2" />
+                      )}
+                      طلب كود الربط
+                    </Button>
+
+                    {pairingCode && (
+                      <div className="flex flex-col items-center gap-2 p-5 bg-primary/5 border-2 border-primary/20 rounded-xl">
+                        <p className="text-sm font-medium text-muted-foreground">أدخل هذا الكود في WhatsApp:</p>
+                        <p className="text-4xl font-bold tracking-widest font-mono text-primary select-all">
+                          {pairingCode}
+                        </p>
+                        <p className="text-xs text-muted-foreground text-center">
+                          الكود صالح لدقيقتين — بعدها اضغط «طلب الكود» مجدداً
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">
                 <span>
