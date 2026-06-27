@@ -26,6 +26,7 @@ import {
   KeyRound,
   QrCode,
   Hash,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -87,6 +88,7 @@ export default function Settings() {
   const [pairingPhone, setPairingPhone] = useState("");
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
+  const [pairingError, setPairingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (settings) {
@@ -99,8 +101,15 @@ export default function Settings() {
     if (baileysStatus?.connected) {
       setPairingCode(null);
       setPairingPhone("");
+      setPairingError(null);
     }
   }, [baileysStatus?.connected]);
+
+  // Clear pairing code when phone changes
+  useEffect(() => {
+    setPairingCode(null);
+    setPairingError(null);
+  }, [pairingPhone]);
 
   async function handleSaveGitHub() {
     const data: Record<string, string> = {};
@@ -118,6 +127,7 @@ export default function Settings() {
       await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
       setPairingCode(null);
       setPairingPhone("");
+      setPairingError(null);
       toast({ title: "تم قطع الاتصال — جاري عرض QR جديد..." });
     } catch (e: unknown) {
       toast({ title: "فشل قطع الاتصال", description: (e as Error)?.message, variant: "destructive" });
@@ -127,11 +137,12 @@ export default function Settings() {
   async function handleRequestPairingCode() {
     const cleaned = pairingPhone.replace(/\D/g, "");
     if (cleaned.length < 7) {
-      toast({ title: "أدخل رقم هاتف صالح مع كود الدولة", variant: "destructive" });
+      setPairingError("أدخل رقم هاتف صالح مع كود الدولة (مثل: 201012345678)");
       return;
     }
     setPairingLoading(true);
     setPairingCode(null);
+    setPairingError(null);
     try {
       const res = await fetch(`${BASE}/api/baileys/pair`, {
         method: "POST",
@@ -141,16 +152,18 @@ export default function Settings() {
       });
       const data = (await res.json()) as { code?: string; error?: string };
       if (!res.ok || data.error) {
-        toast({ title: "فشل طلب الكود", description: data.error ?? "حاول مرة أخرى", variant: "destructive" });
+        setPairingError(data.error ?? "فشل طلب الكود — حاول مرة أخرى");
         return;
       }
-      // Format as XXXX-XXXX
       const raw = data.code ?? "";
+      // Format as XXXX-XXXX
       setPairingCode(raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : raw);
     } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+      setPairingError("خطأ في الاتصال بالخادم — تحقق من الشبكة وحاول مجدداً");
     } finally {
       setPairingLoading(false);
+      // Force a status refresh after attempting pairing
+      void queryClient.invalidateQueries({ queryKey: getGetBaileysStatusQueryKey() });
     }
   }
 
@@ -185,6 +198,9 @@ export default function Settings() {
 
   const isConnected = baileysStatus?.connected ?? false;
   const qrCode = baileysStatus?.qr ?? null;
+  // socketReady = WA WebSocket is open → pairing code can be requested
+  // Fallback: treat qr being present as "ready" (older API without socketReady field)
+  const socketReady = (baileysStatus as { socketReady?: boolean } | undefined)?.socketReady ?? !!qrCode;
 
   return (
     <div className="space-y-8 max-w-2xl" dir="rtl">
@@ -195,7 +211,7 @@ export default function Settings() {
         </p>
       </div>
 
-      {/* Change Credentials Section */}
+      {/* Change Credentials */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -254,7 +270,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* WhatsApp / Baileys Section */}
+      {/* WhatsApp Section */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -262,13 +278,11 @@ export default function Settings() {
             WhatsApp — ربط الجهاز
             {isConnected ? (
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                <Wifi className="h-3 w-3" />
-                متصل
+                <Wifi className="h-3 w-3" />متصل
               </span>
             ) : (
               <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                <WifiOff className="h-3 w-3" />
-                غير متصل
+                <WifiOff className="h-3 w-3" />غير متصل
               </span>
             )}
           </CardTitle>
@@ -281,7 +295,7 @@ export default function Settings() {
                 <div>
                   <p className="font-medium text-green-800 dark:text-green-300">WhatsApp متصل!</p>
                   <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
-                    الجهاز جاهز لإرسال البرودكاست. مش محتاج API ولا حدود.
+                    الجهاز جاهز لإرسال البرودكاست.
                   </p>
                 </div>
               </div>
@@ -291,11 +305,9 @@ export default function Settings() {
                 disabled={logoutMutation.isPending}
                 className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
-                {logoutMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <LogOut className="h-4 w-4 mr-2" />
-                )}
+                {logoutMutation.isPending
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <LogOut className="h-4 w-4 mr-2" />}
                 قطع الاتصال وحذف الجلسة
               </Button>
             </div>
@@ -304,7 +316,7 @@ export default function Settings() {
               {/* Mode toggle */}
               <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
                 <button
-                  onClick={() => { setLinkMode("qr"); setPairingCode(null); }}
+                  onClick={() => { setLinkMode("qr"); setPairingCode(null); setPairingError(null); }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                     linkMode === "qr"
                       ? "bg-background text-foreground shadow-sm"
@@ -315,7 +327,7 @@ export default function Settings() {
                   QR Code
                 </button>
                 <button
-                  onClick={() => { setLinkMode("pairing"); setPairingCode(null); }}
+                  onClick={() => { setLinkMode("pairing"); setPairingCode(null); setPairingError(null); }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                     linkMode === "pairing"
                       ? "bg-background text-foreground shadow-sm"
@@ -330,13 +342,14 @@ export default function Settings() {
               <Separator />
 
               {linkMode === "qr" ? (
+                /* ── QR MODE ── */
                 <>
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">خطوات الاتصال بـ QR:</p>
+                    <p className="text-sm font-medium">خطوات الاتصال:</p>
                     <div className="space-y-2 text-sm text-muted-foreground">
                       {[
                         "افتح WhatsApp على تليفونك",
-                        "اضغط على القائمة (⋮) ثم «الأجهزة المرتبطة»",
+                        "اضغط القائمة (⋮) ثم «الأجهزة المرتبطة»",
                         "اضغط «ربط جهاز» ثم امسح QR Code التالي",
                       ].map((step, i) => (
                         <div key={i} className="flex gap-2">
@@ -353,14 +366,10 @@ export default function Settings() {
                     {qrCode ? (
                       <>
                         <div className="p-3 bg-white rounded-xl border-2 border-border shadow-sm">
-                          <img
-                            src={qrCode}
-                            alt="WhatsApp QR Code"
-                            className="w-52 h-52 object-contain"
-                          />
+                          <img src={qrCode} alt="WhatsApp QR Code" className="w-52 h-52 object-contain" />
                         </div>
                         <p className="text-xs text-muted-foreground text-center">
-                          QR Code ينتهي بعد دقيقة — بيتجدد تلقائياً
+                          QR Code ينتهي بعد ~20 ثانية — بيتجدد تلقائياً
                         </p>
                       </>
                     ) : (
@@ -381,6 +390,7 @@ export default function Settings() {
                   </div>
                 </>
               ) : (
+                /* ── PAIRING CODE MODE ── */
                 <>
                   <div className="space-y-2">
                     <p className="text-sm font-medium">خطوات الربط اليدوي بكود:</p>
@@ -388,9 +398,9 @@ export default function Settings() {
                       {[
                         "افتح WhatsApp على تليفونك",
                         "اضغط القائمة (⋮) ثم «الأجهزة المرتبطة» ثم «ربط جهاز»",
-                        "اضغط «ربط بكود عوضًا عن QR»",
+                        "اضغط «ربط بكود عوضًا عن QR» (في أسفل الشاشة)",
                         "أدخل رقمك بالكامل مع كود الدولة (مثل: 201012345678)",
-                        "اضغط «طلب الكود» وأدخل الكود الظاهر في WhatsApp",
+                        "اضغط «طلب الكود» هنا، ثم أدخل الكود في WhatsApp",
                       ].map((step, i) => (
                         <div key={i} className="flex gap-2">
                           <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
@@ -402,6 +412,14 @@ export default function Settings() {
                     </div>
                   </div>
 
+                  {/* Socket not ready yet — show waiting state */}
+                  {!socketReady && (
+                    <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg text-xs text-yellow-700 dark:text-yellow-300">
+                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      <span>جاري تهيئة الاتصال بـ WhatsApp — انتظر ثوانٍ ثم أدخل رقمك...</span>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     <div>
                       <Label>رقم الهاتف (مع كود الدولة، بدون +)</Label>
@@ -409,7 +427,7 @@ export default function Settings() {
                         dir="ltr"
                         type="tel"
                         value={pairingPhone}
-                        onChange={(e) => { setPairingPhone(e.target.value); setPairingCode(null); }}
+                        onChange={(e) => setPairingPhone(e.target.value)}
                         placeholder="201012345678"
                         className="mt-1.5 font-mono"
                         disabled={pairingLoading}
@@ -421,7 +439,7 @@ export default function Settings() {
 
                     <Button
                       onClick={() => void handleRequestPairingCode()}
-                      disabled={pairingLoading || !pairingPhone.replace(/\D/g, "")}
+                      disabled={pairingLoading || !socketReady || !pairingPhone.replace(/\D/g, "")}
                       className="w-full"
                     >
                       {pairingLoading ? (
@@ -429,9 +447,18 @@ export default function Settings() {
                       ) : (
                         <Hash className="h-4 w-4 mr-2" />
                       )}
-                      طلب كود الربط
+                      {!socketReady ? "جاري تهيئة الاتصال..." : "طلب كود الربط"}
                     </Button>
 
+                    {/* Error */}
+                    {pairingError && (
+                      <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{pairingError}</span>
+                      </div>
+                    )}
+
+                    {/* Success — show code */}
                     {pairingCode && (
                       <div className="flex flex-col items-center gap-2 p-5 bg-primary/5 border-2 border-primary/20 rounded-xl">
                         <p className="text-sm font-medium text-muted-foreground">أدخل هذا الكود في WhatsApp:</p>
@@ -449,7 +476,7 @@ export default function Settings() {
 
               <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">
                 <span>
-                  <strong>ملاحظة:</strong> Baileys بيشغل WhatsApp Web — زي ما بتفتحه في المتصفح. مفيش حدود على عدد الرسائل ومش محتاج Business API.
+                  <strong>ملاحظة:</strong> Baileys بيشغّل WhatsApp Web — مفيش حدود على الرسائل ومش محتاج Business API.
                 </span>
               </div>
             </div>
@@ -457,27 +484,22 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* GitHub Gist Section */}
+      {/* GitHub Gist */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Github className="h-4 w-4" />
             GitHub Gist — لحفظ قوائم الأرقام
             {settings?.hasGithubToken ? (
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                مضبوط
-              </span>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">مضبوط</span>
             ) : (
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
-                اختياري
-              </span>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">اختياري</span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-sm text-muted-foreground">
             بيخليك تحفظ قوائم أرقام العملاء على GitHub Gist وتحملها في أي وقت.
-            مجاني تماماً ومش محتاج قاعدة بيانات.
           </p>
 
           <div className="space-y-4">
@@ -518,11 +540,7 @@ export default function Settings() {
                   type="password"
                   value={githubForm.githubToken}
                   onChange={(e) => setGithubForm({ ...githubForm, githubToken: e.target.value })}
-                  placeholder={
-                    settings?.hasGithubToken
-                      ? "محفوظ — الصق توكن جديد للتحديث"
-                      : "ghp_xxxxxxxxxxxxxxxxxxxx"
-                  }
+                  placeholder={settings?.hasGithubToken ? "محفوظ — الصق توكن جديد للتحديث" : "ghp_xxxxxxxxxxxxxxxxxxxx"}
                   dir="ltr"
                   className="mt-1.5 font-mono"
                 />
@@ -538,11 +556,9 @@ export default function Settings() {
                 />
               </div>
               <Button onClick={() => void handleSaveGitHub()} disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Github className="h-4 w-4 mr-2" />
-                )}
+                {saveMutation.isPending
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <Github className="h-4 w-4 mr-2" />}
                 حفظ بيانات GitHub
               </Button>
             </div>

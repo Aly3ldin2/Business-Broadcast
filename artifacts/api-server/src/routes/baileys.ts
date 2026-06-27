@@ -11,7 +11,11 @@ function getUserId(req: Parameters<Parameters<typeof router.get>[1]>[0]): string
 router.get("/status", (req, res) => {
   const userId = getUserId(req);
   const status = baileysServiceManager.get(userId).getStatus();
-  return res.json({ connected: status.connected, qr: status.qr });
+  return res.json({
+    connected: status.connected,
+    qr: status.qr,
+    socketReady: status.socketReady,
+  });
 });
 
 router.post("/pair", async (req, res) => {

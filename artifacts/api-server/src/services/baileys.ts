@@ -12,16 +12,28 @@ import QRCode from "qrcode";
 const AUTH_BASE = process.env.BAILEYS_AUTH_PATH ?? path.join(process.cwd(), ".baileys_auth");
 const silentLogger = pino({ level: "silent" });
 
+interface PendingPairing {
+  phone: string;
+  resolve: (code: string) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export class BaileysService {
   private sock: ReturnType<typeof makeWASocket> | null = null;
   private _qr: string | null = null;
   private _connected = false;
   private _initializing = false;
+  /** true once the WS to WA servers is confirmed open (QR fired or connection opened) */
+  private _socketReady = false;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private authDir: string;
+  /** Pending pairing-code request waiting for the next WS connection */
+  private _pendingPairing: PendingPairing | null = null;
 
-  constructor(private userId: string) {
-    this.authDir = path.join(AUTH_BASE, userId);
+  constructor(private userId: string) {}
+
+  get authDir() {
+    return path.join(AUTH_BASE, this.userId);
   }
 
   async initialize() {
@@ -55,58 +67,152 @@ export class BaileysService {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
+          // WS to WA is open — mark ready and generate QR image
+          this._initializing = false;
+          this._socketReady = true;
           try {
             this._qr = await QRCode.toDataURL(qr);
           } catch {
             this._qr = qr;
           }
           this._connected = false;
+
+          // If there's a pending pairing request, fulfill it now that WS is open
+          void this._fulfillPendingPairing();
         }
 
         if (connection === "close") {
           this._connected = false;
           this._qr = null;
+          this._socketReady = false;
           this._initializing = false;
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
           if (!isLoggedOut) {
             this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
+          } else {
+            // Logged out — reject any pending pairing
+            this._rejectPendingPairing(new Error("تم تسجيل الخروج — أعد تشغيل الاتصال"));
           }
         } else if (connection === "open") {
           this._connected = true;
           this._qr = null;
+          this._socketReady = true;
           this._initializing = false;
+          // Resolve any pending pairing (shouldn't be any, but just in case)
+          this._rejectPendingPairing(new Error("متصل بالفعل — لا حاجة لكود ربط"));
         }
       });
 
       sock.ev.on("creds.update", saveCreds);
     } catch {
       this._initializing = false;
+      this._socketReady = false;
       this._reconnectTimer = setTimeout(() => void this.initialize(), 10_000);
     }
   }
 
+  /** Try to fulfill a pending pairing code request using the current socket */
+  private async _fulfillPendingPairing() {
+    const pending = this._pendingPairing;
+    if (!pending || !this.sock) return;
+
+    // Small delay — give Baileys a moment after QR fires to stabilize the WS
+    await new Promise((r) => setTimeout(r, 300));
+
+    // Check if it was cancelled while we waited
+    if (this._pendingPairing !== pending) return;
+    this._pendingPairing = null;
+    clearTimeout(pending.timer);
+
+    try {
+      const code = await this.sock.requestPairingCode(pending.phone);
+      pending.resolve(code ?? "");
+    } catch (err) {
+      pending.reject(this._translatePairingError(err));
+    }
+  }
+
+  private _rejectPendingPairing(err: Error) {
+    if (!this._pendingPairing) return;
+    const pending = this._pendingPairing;
+    this._pendingPairing = null;
+    clearTimeout(pending.timer);
+    pending.reject(err);
+  }
+
+  private _translatePairingError(err: unknown): Error {
+    const raw = err instanceof Error ? err.message : String(err);
+    if (/multi.?device/i.test(raw))
+      return new Error("فعّل خاصية الأجهزة المتعددة في WhatsApp أولاً");
+    if (/bad.?session|not.?registered|not.?authent/i.test(raw))
+      return new Error("الجلسة غير صالحة — اضغط «قطع الاتصال» وحاول مجدداً");
+    if (/timeout/i.test(raw))
+      return new Error("انتهت مهلة الطلب — حاول مرة أخرى");
+    if (/connection.closed|closed/i.test(raw))
+      return new Error("الاتصال مؤقتاً مقطوع — جاري إعادة المحاولة...");
+    return new Error(`فشل طلب الكود: ${raw}`);
+  }
+
   getStatus() {
-    return { connected: this._connected, qr: this._qr };
+    return {
+      connected: this._connected,
+      qr: this._qr,
+      /** true once WA WebSocket is open and pairing code can be requested */
+      socketReady: this._socketReady,
+    };
   }
 
   /**
-   * Request a pairing code (8-char) for phone-number-based linking.
-   * Must be called while the socket is in QR-waiting state (not yet registered).
+   * Request an 8-char pairing code for phone-number-based linking.
+   * If the WS is momentarily closed (QR expired), auto-retries on next reconnect.
+   * Resolves with the code or rejects after 45 seconds.
    */
   async requestPairingCode(phone: string): Promise<string> {
-    if (!this.sock) {
-      throw new Error("Socket not initialized — wait for QR to appear first");
-    }
     if (this._connected) {
-      throw new Error("Already connected — logout first to re-link");
+      throw new Error("متصل بالفعل — افصل الجلسة أولاً ثم حاول مجدداً");
     }
     const cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length < 7) {
-      throw new Error("رقم الهاتف غير صالح");
+      throw new Error("رقم الهاتف غير صالح — أدخل الرقم مع كود الدولة بدون +");
     }
-    const code = await this.sock.requestPairingCode(cleanPhone);
-    return code ?? "";
+
+    // Cancel any previously pending pairing
+    this._rejectPendingPairing(new Error("طلب جديد — إلغاء الطلب السابق"));
+
+    // If socket is ready right now, try immediately
+    if (this.sock && this._socketReady) {
+      try {
+        const code = await this.sock.requestPairingCode(cleanPhone);
+        return code ?? "";
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : String(err);
+        // For connection-closed errors, fall through to the pending/retry path
+        if (!/connection.?closed|closed/i.test(raw)) {
+          throw this._translatePairingError(err);
+        }
+        // WS just closed — mark not ready and fall through
+        this._socketReady = false;
+      }
+    }
+
+    // Socket not ready or WS just closed — wait for next reconnect (max 45s)
+    return new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this._pendingPairing?.phone === cleanPhone) {
+          this._pendingPairing = null;
+        }
+        reject(new Error("انتهت مهلة الانتظار (45 ثانية) — حاول مرة أخرى"));
+      }, 45_000);
+
+      this._pendingPairing = { phone: cleanPhone, resolve, reject, timer };
+
+      // If socket is already initializing, _fulfillPendingPairing will be called when QR fires.
+      // If not, kick off initialization.
+      if (!this._initializing && !this.sock) {
+        void this.initialize();
+      }
+    });
   }
 
   async sendText(phone: string, text: string) {
@@ -135,8 +241,6 @@ export class BaileysService {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
     const jid = `${phone}@s.whatsapp.net`;
-    // Pass the buffer directly — avoids temp-file race conditions that corrupt
-    // large video encryption for files > ~60 seconds.
     await this.sock.sendMessage(jid, {
       video: buffer,
       mimetype,
@@ -147,10 +251,13 @@ export class BaileysService {
   }
 
   async logout() {
+    this._rejectPendingPairing(new Error("تم تسجيل الخروج"));
+
     const sock = this.sock;
     this.sock = null;
     this._connected = false;
     this._qr = null;
+    this._socketReady = false;
     this._initializing = false;
 
     if (this._reconnectTimer) {
@@ -165,10 +272,8 @@ export class BaileysService {
 
     await rm(this.authDir, { recursive: true, force: true });
 
-    // Re-initialize immediately so a fresh QR appears
     void this.initialize();
   }
 }
 
-// Keep backward-compatible singleton for legacy imports
 export const baileysService = new BaileysService("default");
