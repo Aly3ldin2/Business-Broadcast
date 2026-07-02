@@ -73,12 +73,10 @@ function useQRCountdown(qrCode: string | null) {
   }, [qrCode]);
 
   const pct = seconds / QR_TTL;
-  const radius = 112;
-  const circ = 2 * Math.PI * radius;
-  const dash = circ * pct;
-  const color = seconds > 30 ? "#22c55e" : seconds > 15 ? "#f59e0b" : "#ef4444";
+  const color: "green" | "amber" | "red" =
+    seconds > 30 ? "green" : seconds > 15 ? "amber" : "red";
 
-  return { seconds, dash, circ, radius, color };
+  return { seconds, pct, color };
 }
 
 export default function Settings() {
@@ -256,43 +254,41 @@ export default function Settings() {
               <div className="flex flex-col items-center gap-3 py-2">
                 {qrCode ? (
                   <>
-                    {/* QR + circular countdown ring */}
-                    <div className="relative inline-flex items-center justify-center">
-                      <svg
-                        width="246"
-                        height="246"
-                        className="absolute top-0 left-0 -rotate-90"
-                        style={{ pointerEvents: "none" }}
-                      >
-                        {/* track */}
-                        <circle
-                          cx="123" cy="123" r={countdown.radius}
-                          fill="none" stroke="currentColor"
-                          strokeWidth="4"
-                          className="text-muted/40"
-                        />
-                        {/* progress */}
-                        <circle
-                          cx="123" cy="123" r={countdown.radius}
-                          fill="none"
-                          stroke={countdown.color}
-                          strokeWidth="4"
-                          strokeLinecap="round"
-                          strokeDasharray={`${countdown.dash} ${countdown.circ}`}
-                          style={{ transition: "stroke-dasharray 0.8s linear, stroke 0.4s ease" }}
-                        />
-                      </svg>
-                      <div className="p-3 bg-white rounded-xl border-2 border-border shadow-sm">
-                        <img src={qrCode} alt="WhatsApp QR Code" className="w-52 h-52 object-contain" />
-                      </div>
+                    <div className="p-3 bg-white rounded-xl border border-border shadow-sm">
+                      <img src={qrCode} alt="WhatsApp QR Code" className="w-52 h-52 object-contain" />
                     </div>
 
-                    {/* seconds label */}
-                    <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: countdown.color }}>
-                      <RefreshCw className="h-3 w-3" />
-                      يتجدد خلال{" "}
-                      <span className="tabular-nums font-bold">{countdown.seconds}</span>
-                      {" "}ثانية
+                    {/* Progress bar timer */}
+                    <div className="w-full max-w-[220px] space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <RefreshCw className="h-3 w-3" />
+                          يتجدد تلقائياً
+                        </span>
+                        <span
+                          className={`tabular-nums font-bold ${
+                            countdown.color === "green"
+                              ? "text-green-600 dark:text-green-400"
+                              : countdown.color === "amber"
+                              ? "text-amber-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {countdown.seconds}s
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                            countdown.color === "green"
+                              ? "bg-green-500"
+                              : countdown.color === "amber"
+                              ? "bg-amber-400"
+                              : "bg-red-500"
+                          }`}
+                          style={{ width: `${countdown.pct * 100}%` }}
+                        />
+                      </div>
                     </div>
                   </>
                 ) : (

@@ -14,9 +14,51 @@ export interface SessionData {
 
 export type LoginResult =
   | { status: "ok"; user: AuthUser }
-  | { status: "first_login_registered" }
+  | { status: "not_found" }
   | { status: "invalid" };
 
+// ---------------------------------------------------------------------------
+// Check if any user exists in the DB (first-run detection)
+// ---------------------------------------------------------------------------
+export async function hasAnyUser(): Promise<boolean> {
+  const [row] = await db.select({ id: appUsersTable.id }).from(appUsersTable).limit(1);
+  return !!row;
+}
+
+// ---------------------------------------------------------------------------
+// Create the very first user — only allowed when no user exists
+// ---------------------------------------------------------------------------
+export async function createFirstUser(
+  username: string,
+  password: string,
+): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
+  const already = await hasAnyUser();
+  if (already) {
+    return { success: false, error: "الحساب موجود بالفعل — سجّل دخولك" };
+  }
+  if (password.length < 6) {
+    return { success: false, error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" };
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
+  const [row] = await db
+    .insert(appUsersTable)
+    .values({ username, passwordHash })
+    .returning();
+  return {
+    success: true,
+    user: {
+      id: row.id,
+      email: null,
+      firstName: row.username,
+      lastName: null,
+      profileImageUrl: null,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Normal login — never auto-creates
+// ---------------------------------------------------------------------------
 export async function checkCredentials(username: string, password: string): Promise<LoginResult> {
   const [existing] = await db
     .select()
@@ -24,11 +66,7 @@ export async function checkCredentials(username: string, password: string): Prom
     .where(eq(appUsersTable.username, username))
     .limit(1);
 
-  if (!existing) {
-    const passwordHash = await bcrypt.hash(password, 10);
-    await db.insert(appUsersTable).values({ username, passwordHash });
-    return { status: "first_login_registered" };
-  }
+  if (!existing) return { status: "not_found" };
 
   const valid = await bcrypt.compare(password, existing.passwordHash);
   if (!valid) return { status: "invalid" };
@@ -75,7 +113,6 @@ export async function resetPasswordWithGistToken(
   gistToken: string,
   newPassword: string,
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
-  // Find user by username
   const [appUser] = await db
     .select()
     .from(appUsersTable)
@@ -84,7 +121,6 @@ export async function resetPasswordWithGistToken(
 
   if (!appUser) return { success: false, error: "اسم المستخدم غير موجود" };
 
-  // Find their settings and check the gist token
   const [settings] = await db
     .select()
     .from(settingsTable)
@@ -99,7 +135,6 @@ export async function resetPasswordWithGistToken(
     return { success: false, error: "GitHub Token غير صحيح" };
   }
 
-  // Token matched — reset the password
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await db
     .update(appUsersTable)

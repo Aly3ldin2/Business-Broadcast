@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Eye, EyeOff, MessageCircle,
-  Lock, User, Moon, Sun, Radio,
+  Lock, User, Moon, Sun, Radio, ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@workspace/api-client-react";
@@ -21,7 +21,7 @@ const queryClient = new QueryClient();
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
 // ---------------------------------------------------------------------------
-// Theme hook — shared by login page and layout
+// Theme hook
 // ---------------------------------------------------------------------------
 export function useTheme() {
   const [isDark, setIsDark] = useState(() => {
@@ -39,7 +39,7 @@ export function useTheme() {
 }
 
 // ---------------------------------------------------------------------------
-// Auth
+// Auth queries
 // ---------------------------------------------------------------------------
 async function fetchUser(): Promise<AuthUser | null> {
   const res = await fetch(`${BASE}/api/auth/user`, { credentials: "include" });
@@ -48,12 +48,22 @@ async function fetchUser(): Promise<AuthUser | null> {
   return data.user ?? null;
 }
 
+async function fetchSetupStatus(): Promise<{ hasUser: boolean }> {
+  const res = await fetch(`${BASE}/api/auth/setup-status`);
+  if (!res.ok) return { hasUser: true };
+  return res.json() as Promise<{ hasUser: boolean }>;
+}
+
 function useAuth() {
   return useQuery({ queryKey: ["auth-user"], queryFn: fetchUser, staleTime: Infinity });
 }
 
+function useSetupStatus() {
+  return useQuery({ queryKey: ["setup-status"], queryFn: fetchSetupStatus, staleTime: Infinity });
+}
+
 // ---------------------------------------------------------------------------
-// Password Input
+// Shared components
 // ---------------------------------------------------------------------------
 function PasswordInput({
   id, value, onChange, placeholder, disabled, autoComplete,
@@ -88,23 +98,25 @@ function PasswordInput({
 }
 
 // ---------------------------------------------------------------------------
-// Login Page shell — handles theme + split layout
+// Auth shell — split layout for desktop, single column for mobile
 // ---------------------------------------------------------------------------
 function AuthShell({
   children,
   title,
   subtitle,
+  badge,
 }: {
   children: React.ReactNode;
   title: string;
   subtitle: string;
+  badge?: string;
 }) {
   const { isDark, toggle } = useTheme();
 
   return (
     <div className="min-h-screen flex bg-background" dir="rtl">
 
-      {/* ── Left panel — decorative (desktop only) ── */}
+      {/* ── Left panel (desktop) ── */}
       <div
         className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col items-center justify-center p-12 overflow-hidden"
         style={{
@@ -113,16 +125,12 @@ function AuthShell({
             : "linear-gradient(135deg, #075e54 0%, #128c7e 50%, #25d366 100%)",
         }}
       >
-        {/* decorative circles */}
         <div className="absolute top-[-10%] right-[-5%] w-72 h-72 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)" }} />
+          style={{ background: "radial-gradient(circle, #fff 0%, transparent 70%)" }} />
         <div className="absolute bottom-[-5%] left-[-5%] w-64 h-64 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)" }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-5"
-          style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 60%)" }} />
+          style={{ background: "radial-gradient(circle, #fff 0%, transparent 70%)" }} />
 
         <div className="relative z-10 text-center space-y-8 max-w-md">
-          {/* Logo */}
           <div className="flex justify-center">
             <div
               className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl"
@@ -131,24 +139,16 @@ function AuthShell({
               <Radio className="h-12 w-12 text-white" />
             </div>
           </div>
-
           <div className="space-y-3">
-            <h1 className="text-4xl font-bold text-white leading-tight">
-              WhatsApp<br />Broadcast
-            </h1>
+            <h1 className="text-4xl font-bold text-white leading-tight">WhatsApp<br />Broadcast</h1>
             <p className="text-white/70 text-lg leading-relaxed">
               أرسل رسائل جماعية لعملائك بكل سهولة وسرعة عبر WhatsApp
             </p>
           </div>
-
-          {/* Feature pills */}
           <div className="flex flex-wrap justify-center gap-2">
             {["إرسال جماعي", "قوائم جهات الاتصال", "دعم الوسائط"].map((f) => (
-              <span
-                key={f}
-                className="px-3 py-1 rounded-full text-sm text-white/80 font-medium"
-                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
-              >
+              <span key={f} className="px-3 py-1 rounded-full text-sm text-white/80 font-medium"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}>
                 {f}
               </span>
             ))}
@@ -158,9 +158,7 @@ function AuthShell({
 
       {/* ── Right panel — form ── */}
       <div className="flex-1 flex flex-col">
-        {/* Top bar */}
         <div className="flex items-center justify-between px-4 sm:px-8 pt-5">
-          {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <MessageCircle className="h-4 w-4 text-primary-foreground" fill="currentColor" />
@@ -168,12 +166,9 @@ function AuthShell({
             <span className="text-sm font-bold text-foreground">WhatsApp Broadcast</span>
           </div>
           <div className="hidden lg:block" />
-
-          {/* Theme toggle */}
           <button
             onClick={toggle}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
-            title={isDark ? "الوضع الفاتح" : "الوضع المظلم"}
           >
             {isDark
               ? <><Sun className="h-3.5 w-3.5" /><span className="hidden sm:inline">فاتح</span></>
@@ -182,45 +177,139 @@ function AuthShell({
           </button>
         </div>
 
-        {/* Form area */}
         <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-8">
           <div className="w-full max-w-sm space-y-6">
-
-            {/* Mobile header */}
-            <div className="lg:hidden text-center space-y-1 mb-2">
+            <div className="space-y-1">
+              {badge && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary mb-2">
+                  {badge}
+                </span>
+              )}
               <h2 className="text-2xl font-bold text-foreground">{title}</h2>
               <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
-
-            {/* Desktop header */}
-            <div className="hidden lg:block space-y-1">
-              <h2 className="text-2xl font-bold text-foreground">{title}</h2>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
-            </div>
-
             {children}
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground pb-5 px-4">
-          أول مرة تدخل بياناتك سيتم إنشاء حسابك تلقائياً
-        </p>
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
+// Setup Form — first-run only
+// ---------------------------------------------------------------------------
+function SetupForm({ onSuccess }: { onSuccess: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username.trim() || !password || !confirm) return;
+    if (password !== confirm) {
+      toast({ title: "خطأ", description: "كلمتا المرور غير متطابقتين", variant: "destructive" });
+      return;
+    }
+    if (password.length < 6) {
+      toast({ title: "خطأ", description: "كلمة المرور 6 أحرف على الأقل", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/auth/setup`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = (await res.json()) as { user?: AuthUser; error?: string };
+      if (!res.ok || data.error) {
+        toast({ title: "خطأ", description: data.error ?? "فشل إنشاء الحساب", variant: "destructive" });
+        return;
+      }
+      toast({ title: "✅ تم إنشاء الحساب", description: "مرحباً بك في WhatsApp Broadcast" });
+      await qc.invalidateQueries({ queryKey: ["setup-status"] });
+      onSuccess();
+    } catch {
+      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <AuthShell
+      title="إنشاء حسابك"
+      subtitle="المرة الأولى — اختر اسم المستخدم وكلمة المرور"
+      badge="إعداد أولي"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Info box */}
+        <div className="flex gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary">
+          <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>هذه البيانات ستُستخدم لتسجيل الدخول لاحقاً. احتفظ بها في مكان آمن.</span>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="su-username" className="text-sm font-medium">اسم المستخدم</Label>
+          <div className="relative">
+            <Input
+              id="su-username"
+              dir="ltr"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              disabled={loading}
+              className="h-11 pl-10"
+            />
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="su-password" className="text-sm font-medium">كلمة المرور</Label>
+          <PasswordInput
+            id="su-password"
+            value={password}
+            onChange={setPassword}
+            disabled={loading}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="su-confirm" className="text-sm font-medium">تأكيد كلمة المرور</Label>
+          <PasswordInput
+            id="su-confirm"
+            value={confirm}
+            onChange={setConfirm}
+            disabled={loading}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading || !username.trim() || !password || !confirm}
+          className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm mt-2"
+        >
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {loading ? "جارٍ الإنشاء..." : "إنشاء الحساب والدخول"}
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Login Form
 // ---------------------------------------------------------------------------
-function LoginForm({
-  onSuccess,
-  onForgotPassword,
-}: {
-  onSuccess: () => void;
-  onForgotPassword: () => void;
-}) {
+function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onForgotPassword: () => void }) {
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -294,11 +383,7 @@ function LoginForm({
         </button>
 
         <div className="text-center pt-1">
-          <button
-            type="button"
-            onClick={onForgotPassword}
-            className="text-sm text-primary hover:underline"
-          >
+          <button type="button" onClick={onForgotPassword} className="text-sm text-primary hover:underline">
             نسيت كلمة المرور؟
           </button>
         </div>
@@ -310,13 +395,7 @@ function LoginForm({
 // ---------------------------------------------------------------------------
 // Forgot Password Form
 // ---------------------------------------------------------------------------
-function ForgotPasswordForm({
-  onSuccess,
-  onBack,
-}: {
-  onSuccess: () => void;
-  onBack: () => void;
-}) {
+function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBack: () => void }) {
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [gistToken, setGistToken] = useState("");
@@ -332,7 +411,7 @@ function ForgotPasswordForm({
       return;
     }
     if (newPassword.length < 6) {
-      toast({ title: "خطأ", description: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" });
+      toast({ title: "خطأ", description: "كلمة المرور 6 أحرف على الأقل", variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -358,55 +437,31 @@ function ForgotPasswordForm({
   }
 
   return (
-    <AuthShell title="استرداد كلمة المرور" subtitle="أدخل بياناتك لإعادة تعيين كلمة المرور">
+    <AuthShell title="استرداد كلمة المرور" subtitle="استخدم GitHub Token المسجّل لإعادة التعيين">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="fp-username" className="text-sm font-medium">اسم المستخدم</Label>
-          <Input
-            id="fp-username"
-            dir="ltr"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="admin"
-            disabled={loading}
-            className="h-11"
-          />
+          <Input id="fp-username" dir="ltr" autoComplete="username" value={username}
+            onChange={(e) => setUsername(e.target.value)} placeholder="admin" disabled={loading} className="h-11" />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="fp-gist-token" className="text-sm font-medium">GitHub Token</Label>
-          <PasswordInput
-            id="fp-gist-token"
-            value={gistToken}
-            onChange={setGistToken}
-            placeholder="ghp_xxxxxxxxxxxx"
-            disabled={loading}
-            autoComplete="off"
-          />
+          <PasswordInput id="fp-gist-token" value={gistToken} onChange={setGistToken}
+            placeholder="ghp_xxxxxxxxxxxx" disabled={loading} autoComplete="off" />
           <p className="text-xs text-muted-foreground">نفس الـ Token المسجّل في صفحة الإعدادات</p>
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="fp-new-password" className="text-sm font-medium">كلمة المرور الجديدة</Label>
-          <PasswordInput
-            id="fp-new-password"
-            value={newPassword}
-            onChange={setNewPassword}
-            disabled={loading}
-            autoComplete="new-password"
-          />
+          <PasswordInput id="fp-new-password" value={newPassword} onChange={setNewPassword}
+            disabled={loading} autoComplete="new-password" />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="fp-confirm-password" className="text-sm font-medium">تأكيد كلمة المرور</Label>
-          <PasswordInput
-            id="fp-confirm-password"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-            disabled={loading}
-            autoComplete="new-password"
-          />
+          <PasswordInput id="fp-confirm-password" value={confirmPassword} onChange={setConfirmPassword}
+            disabled={loading} autoComplete="new-password" />
         </div>
 
         <button
@@ -419,11 +474,8 @@ function ForgotPasswordForm({
         </button>
 
         <div className="text-center">
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors"
-          >
+          <button type="button" onClick={onBack}
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors">
             ← العودة لتسجيل الدخول
           </button>
         </div>
@@ -433,9 +485,9 @@ function ForgotPasswordForm({
 }
 
 // ---------------------------------------------------------------------------
-// Router & App shell
+// Router
 // ---------------------------------------------------------------------------
-function Router() {
+function AppRouter() {
   return (
     <Layout>
       <Switch>
@@ -449,36 +501,44 @@ function Router() {
 }
 
 function LoginGate({ children }: { children: React.ReactNode }) {
-  const { isLoading, data: user } = useAuth();
+  const { isLoading: authLoading, data: user } = useAuth();
+  const { isLoading: setupLoading, data: setupStatus } = useSetupStatus();
   const qc = useQueryClient();
   const [showForgot, setShowForgot] = useState(false);
 
-  if (isLoading) {
+  const loading = authLoading || setupLoading;
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-          <p className="text-sm text-muted-foreground">جارٍ التحقق من الهوية…</p>
+          <p className="text-sm text-muted-foreground">جارٍ التحميل…</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    const handleSuccess = () => {
-      setShowForgot(false);
-      void qc.invalidateQueries({ queryKey: ["auth-user"] });
-    };
+  if (user) return <>{children}</>;
 
-    if (showForgot) {
-      return <ForgotPasswordForm onSuccess={handleSuccess} onBack={() => setShowForgot(false)} />;
-    }
-    return <LoginForm onSuccess={handleSuccess} onForgotPassword={() => setShowForgot(true)} />;
+  const handleSuccess = () => {
+    setShowForgot(false);
+    void qc.invalidateQueries({ queryKey: ["auth-user"] });
+    void qc.invalidateQueries({ queryKey: ["setup-status"] });
+  };
+
+  // First-run: no user exists in DB yet
+  if (!setupStatus?.hasUser) {
+    return <SetupForm onSuccess={handleSuccess} />;
   }
 
-  return <>{children}</>;
+  if (showForgot) {
+    return <ForgotPasswordForm onSuccess={handleSuccess} onBack={() => setShowForgot(false)} />;
+  }
+
+  return <LoginForm onSuccess={handleSuccess} onForgotPassword={() => setShowForgot(true)} />;
 }
 
 function App() {
@@ -487,7 +547,7 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <LoginGate>
-            <Router />
+            <AppRouter />
           </LoginGate>
         </WouterRouter>
         <Toaster />
