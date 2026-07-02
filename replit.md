@@ -10,7 +10,9 @@ A free, self-hosted broadcast system for WhatsApp Business API — lets business
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `DATABASE_PATH` — SQLite file path (defaults to `app.db` in the project root)
+- Optional env: `BAILEYS_AUTH_PATH` — Baileys session directory (defaults to `.baileys_auth/`)
+- Required env: `PORT` — injected automatically by Replit workflows
 
 ## Stack
 
