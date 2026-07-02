@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,14 +10,37 @@ import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Eye, EyeOff, MessageCircle, Lock, User } from "lucide-react";
+import {
+  Loader2, Eye, EyeOff, MessageCircle,
+  Lock, User, Moon, Sun, Radio,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@workspace/api-client-react";
 
 const queryClient = new QueryClient();
-
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
+// ---------------------------------------------------------------------------
+// Theme hook — shared by login page and layout
+// ---------------------------------------------------------------------------
+export function useTheme() {
+  const [isDark, setIsDark] = useState(() => {
+    const stored = localStorage.getItem("wa_theme");
+    if (stored) return stored === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    localStorage.setItem("wa_theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  return { isDark, toggle: () => setIsDark((v) => !v) };
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
 async function fetchUser(): Promise<AuthUser | null> {
   const res = await fetch(`${BASE}/api/auth/user`, { credentials: "include" });
   if (!res.ok) return null;
@@ -29,20 +52,14 @@ function useAuth() {
   return useQuery({ queryKey: ["auth-user"], queryFn: fetchUser, staleTime: Infinity });
 }
 
+// ---------------------------------------------------------------------------
+// Password Input
+// ---------------------------------------------------------------------------
 function PasswordInput({
-  id,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  autoComplete,
+  id, value, onChange, placeholder, disabled, autoComplete,
 }: {
-  id: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  autoComplete?: string;
+  id: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; disabled?: boolean; autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -56,16 +73,140 @@ function PasswordInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "••••••••"}
         disabled={disabled}
-        className="pr-3 pl-10 h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40"
+        className="h-11 pl-10"
       />
       <button
         type="button"
         tabIndex={-1}
         onClick={() => setShow((s) => !s)}
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
       >
         {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Login Page shell — handles theme + split layout
+// ---------------------------------------------------------------------------
+function AuthShell({
+  children,
+  title,
+  subtitle,
+}: {
+  children: React.ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  const { isDark, toggle } = useTheme();
+
+  return (
+    <div className="min-h-screen flex bg-background" dir="rtl">
+
+      {/* ── Left panel — decorative (desktop only) ── */}
+      <div
+        className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col items-center justify-center p-12 overflow-hidden"
+        style={{
+          background: isDark
+            ? "linear-gradient(135deg, #0a1f1c 0%, #0d2b25 50%, #0f3d2e 100%)"
+            : "linear-gradient(135deg, #075e54 0%, #128c7e 50%, #25d366 100%)",
+        }}
+      >
+        {/* decorative circles */}
+        <div className="absolute top-[-10%] right-[-5%] w-72 h-72 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)" }} />
+        <div className="absolute bottom-[-5%] left-[-5%] w-64 h-64 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)" }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-5"
+          style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 60%)" }} />
+
+        <div className="relative z-10 text-center space-y-8 max-w-md">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <div
+              className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl"
+              style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.25)" }}
+            >
+              <Radio className="h-12 w-12 text-white" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h1 className="text-4xl font-bold text-white leading-tight">
+              WhatsApp<br />Broadcast
+            </h1>
+            <p className="text-white/70 text-lg leading-relaxed">
+              أرسل رسائل جماعية لعملائك بكل سهولة وسرعة عبر WhatsApp
+            </p>
+          </div>
+
+          {/* Feature pills */}
+          <div className="flex flex-wrap justify-center gap-2">
+            {["إرسال جماعي", "قوائم جهات الاتصال", "دعم الوسائط"].map((f) => (
+              <span
+                key={f}
+                className="px-3 py-1 rounded-full text-sm text-white/80 font-medium"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
+              >
+                {f}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Right panel — form ── */}
+      <div className="flex-1 flex flex-col">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-4 sm:px-8 pt-5">
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <MessageCircle className="h-4 w-4 text-primary-foreground" fill="currentColor" />
+            </div>
+            <span className="text-sm font-bold text-foreground">WhatsApp Broadcast</span>
+          </div>
+          <div className="hidden lg:block" />
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggle}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
+            title={isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+          >
+            {isDark
+              ? <><Sun className="h-3.5 w-3.5" /><span className="hidden sm:inline">فاتح</span></>
+              : <><Moon className="h-3.5 w-3.5" /><span className="hidden sm:inline">مظلم</span></>
+            }
+          </button>
+        </div>
+
+        {/* Form area */}
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-8">
+          <div className="w-full max-w-sm space-y-6">
+
+            {/* Mobile header */}
+            <div className="lg:hidden text-center space-y-1 mb-2">
+              <h2 className="text-2xl font-bold text-foreground">{title}</h2>
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            </div>
+
+            {/* Desktop header */}
+            <div className="hidden lg:block space-y-1">
+              <h2 className="text-2xl font-bold text-foreground">{title}</h2>
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            </div>
+
+            {children}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-muted-foreground pb-5 px-4">
+          أول مرة تدخل بياناتك سيتم إنشاء حسابك تلقائياً
+        </p>
+      </div>
     </div>
   );
 }
@@ -97,12 +238,10 @@ function LoginForm({
         body: JSON.stringify({ username: username.trim(), password }),
       });
       const data = (await res.json()) as { user?: AuthUser; error?: string };
-
       if (!res.ok || data.error) {
         toast({ title: "خطأ", description: data.error ?? "فشل تسجيل الدخول", variant: "destructive" });
         return;
       }
-
       onSuccess();
     } catch {
       toast({ title: "خطأ في الاتصال", variant: "destructive" });
@@ -112,115 +251,59 @@ function LoginForm({
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-4"
-      dir="rtl"
-      style={{
-        background: "linear-gradient(135deg, #075e54 0%, #128c7e 40%, #25d366 100%)",
-      }}
-    >
-      {/* Decorative blobs */}
-      <div
-        className="absolute top-0 left-0 w-96 h-96 rounded-full opacity-10 pointer-events-none"
-        style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)", transform: "translate(-30%, -30%)" }}
-      />
-      <div
-        className="absolute bottom-0 right-0 w-80 h-80 rounded-full opacity-10 pointer-events-none"
-        style={{ background: "radial-gradient(circle, #ffffff 0%, transparent 70%)", transform: "translate(30%, 30%)" }}
-      />
-
-      <div className="relative w-full max-w-sm space-y-8">
-        {/* Header */}
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl"
-            style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.25)" }}
-          >
-            <MessageCircle className="h-10 w-10 text-white" fill="white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">WhatsApp Broadcast</h1>
-            <p className="text-white/60 mt-1 text-sm">
-              أدخل بياناتك للدخول إلى لوحة التحكم
-            </p>
+    <AuthShell title="تسجيل الدخول" subtitle="أدخل بياناتك للوصول إلى لوحة التحكم">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="username" className="text-sm font-medium">اسم المستخدم</Label>
+          <div className="relative">
+            <Input
+              id="username"
+              dir="ltr"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              disabled={loading}
+              className="h-11 pl-10"
+            />
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         </div>
 
-        {/* Card */}
-        <div
-          className="rounded-2xl p-7 space-y-5 shadow-2xl"
-          style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.2)" }}
+        <div className="space-y-1.5">
+          <Label htmlFor="password" className="text-sm font-medium">كلمة المرور</Label>
+          <div className="relative">
+            <PasswordInput
+              id="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={setPassword}
+              disabled={loading}
+            />
+            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading || !username.trim() || !password}
+          className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm mt-2"
         >
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-white/80 text-sm font-medium">
-                اسم المستخدم
-              </Label>
-              <div className="relative">
-                <Input
-                  id="username"
-                  dir="ltr"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
-                  disabled={loading}
-                  className="pr-3 pl-10 h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40"
-                />
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-              </div>
-            </div>
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {loading ? "جارٍ الدخول..." : "تسجيل الدخول"}
+        </button>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-white/80 text-sm font-medium">
-                كلمة المرور
-              </Label>
-              <div className="relative">
-                <PasswordInput
-                  id="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={setPassword}
-                  disabled={loading}
-                />
-                <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40 pointer-events-none" />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || !username.trim() || !password}
-              className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: loading || !username.trim() || !password
-                  ? "rgba(255,255,255,0.2)"
-                  : "rgba(255,255,255,0.95)",
-                color: loading || !username.trim() || !password ? "rgba(255,255,255,0.5)" : "#075e54",
-                boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-              }}
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "جارٍ الدخول..." : "تسجيل الدخول"}
-            </button>
-          </form>
-
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={onForgotPassword}
-              className="text-sm text-white/60 hover:text-white transition-colors hover:underline"
-            >
-              نسيت كلمة المرور؟
-            </button>
-          </div>
+        <div className="text-center pt-1">
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className="text-sm text-primary hover:underline"
+          >
+            نسيت كلمة المرور؟
+          </button>
         </div>
-
-        {/* Footer note */}
-        <p className="text-center text-white/40 text-xs">
-          أول مرة تدخل بياناتك سيتم إنشاء حسابك تلقائياً
-        </p>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   );
 }
 
@@ -244,37 +327,28 @@ function ForgotPasswordForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim() || !gistToken.trim() || !newPassword || !confirmPassword) return;
-
     if (newPassword !== confirmPassword) {
       toast({ title: "خطأ", description: "كلمتا المرور غير متطابقتين", variant: "destructive" });
       return;
     }
-
     if (newPassword.length < 6) {
       toast({ title: "خطأ", description: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" });
       return;
     }
-
     setLoading(true);
     try {
       const res = await fetch(`${BASE}/api/auth/forgot-password`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: username.trim(),
-          gistToken: gistToken.trim(),
-          newPassword,
-        }),
+        body: JSON.stringify({ username: username.trim(), gistToken: gistToken.trim(), newPassword }),
       });
       const data = (await res.json()) as { success?: boolean; error?: string };
-
       if (!res.ok || data.error) {
         toast({ title: "خطأ", description: data.error ?? "فشل إعادة تعيين كلمة المرور", variant: "destructive" });
         return;
       }
-
-      toast({ title: "✅ تم", description: "تم إعادة تعيين كلمة المرور وتسجيل دخولك" });
+      toast({ title: "✅ تم", description: "تم إعادة تعيين كلمة المرور بنجاح" });
       onSuccess();
     } catch {
       toast({ title: "خطأ في الاتصال", variant: "destructive" });
@@ -284,110 +358,77 @@ function ForgotPasswordForm({
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-4"
-      dir="rtl"
-      style={{
-        background: "linear-gradient(135deg, #075e54 0%, #128c7e 40%, #25d366 100%)",
-      }}
-    >
-      <div className="relative w-full max-w-sm space-y-8">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl"
-            style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.25)" }}
-          >
-            <Lock className="h-8 w-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">استرداد كلمة المرور</h1>
-            <p className="text-white/60 mt-1 text-sm">
-              أدخل اسم المستخدم و GitHub Token لإعادة التعيين
-            </p>
-          </div>
+    <AuthShell title="استرداد كلمة المرور" subtitle="أدخل بياناتك لإعادة تعيين كلمة المرور">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="fp-username" className="text-sm font-medium">اسم المستخدم</Label>
+          <Input
+            id="fp-username"
+            dir="ltr"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="admin"
+            disabled={loading}
+            className="h-11"
+          />
         </div>
 
-        <div
-          className="rounded-2xl p-7 space-y-4 shadow-2xl"
-          style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.2)" }}
+        <div className="space-y-1.5">
+          <Label htmlFor="fp-gist-token" className="text-sm font-medium">GitHub Token</Label>
+          <PasswordInput
+            id="fp-gist-token"
+            value={gistToken}
+            onChange={setGistToken}
+            placeholder="ghp_xxxxxxxxxxxx"
+            disabled={loading}
+            autoComplete="off"
+          />
+          <p className="text-xs text-muted-foreground">نفس الـ Token المسجّل في صفحة الإعدادات</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="fp-new-password" className="text-sm font-medium">كلمة المرور الجديدة</Label>
+          <PasswordInput
+            id="fp-new-password"
+            value={newPassword}
+            onChange={setNewPassword}
+            disabled={loading}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="fp-confirm-password" className="text-sm font-medium">تأكيد كلمة المرور</Label>
+          <PasswordInput
+            id="fp-confirm-password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            disabled={loading}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading || !username.trim() || !gistToken.trim() || !newPassword || !confirmPassword}
+          className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm"
         >
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="fp-username" className="text-white/80 text-sm">اسم المستخدم</Label>
-              <Input
-                id="fp-username"
-                dir="ltr"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
-                disabled={loading}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/40"
-              />
-            </div>
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          إعادة تعيين كلمة المرور
+        </button>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="fp-gist-token" className="text-white/80 text-sm">GitHub Token</Label>
-              <PasswordInput
-                id="fp-gist-token"
-                value={gistToken}
-                onChange={setGistToken}
-                placeholder="ghp_xxxxxxxxxxxx"
-                disabled={loading}
-                autoComplete="off"
-              />
-              <p className="text-xs text-white/40">نفس الـ Token المسجّل في صفحة الإعدادات</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="fp-new-password" className="text-white/80 text-sm">كلمة المرور الجديدة</Label>
-              <PasswordInput
-                id="fp-new-password"
-                value={newPassword}
-                onChange={setNewPassword}
-                disabled={loading}
-                autoComplete="new-password"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="fp-confirm-password" className="text-white/80 text-sm">تأكيد كلمة المرور</Label>
-              <PasswordInput
-                id="fp-confirm-password"
-                value={confirmPassword}
-                onChange={setConfirmPassword}
-                disabled={loading}
-                autoComplete="new-password"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || !username.trim() || !gistToken.trim() || !newPassword || !confirmPassword}
-              className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: "rgba(255,255,255,0.95)",
-                color: "#075e54",
-                boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-              }}
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              إعادة تعيين كلمة المرور
-            </button>
-          </form>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={onBack}
-              className="text-sm text-white/50 hover:text-white transition-colors hover:underline"
-            >
-              ← العودة لتسجيل الدخول
-            </button>
-          </div>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors"
+          >
+            ← العودة لتسجيل الدخول
+          </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   );
 }
 
@@ -414,13 +455,12 @@ function LoginGate({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "linear-gradient(135deg, #075e54 0%, #128c7e 40%, #25d366 100%)" }}
-      >
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-white" />
-          <div className="text-white/60 text-sm">جارٍ التحقق من الهوية…</div>
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+          <p className="text-sm text-muted-foreground">جارٍ التحقق من الهوية…</p>
         </div>
       </div>
     );
@@ -433,20 +473,9 @@ function LoginGate({ children }: { children: React.ReactNode }) {
     };
 
     if (showForgot) {
-      return (
-        <ForgotPasswordForm
-          onSuccess={handleSuccess}
-          onBack={() => setShowForgot(false)}
-        />
-      );
+      return <ForgotPasswordForm onSuccess={handleSuccess} onBack={() => setShowForgot(false)} />;
     }
-
-    return (
-      <LoginForm
-        onSuccess={handleSuccess}
-        onForgotPassword={() => setShowForgot(true)}
-      />
-    );
+    return <LoginForm onSuccess={handleSuccess} onForgotPassword={() => setShowForgot(true)} />;
   }
 
   return <>{children}</>;
