@@ -50,6 +50,37 @@ const GITHUB_STEPS = [
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
+const QR_TTL = 60;
+
+function useQRCountdown(qrCode: string | null) {
+  const [seconds, setSeconds] = useState(QR_TTL);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!qrCode) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setSeconds(QR_TTL);
+      return;
+    }
+    setSeconds(QR_TTL);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setSeconds((s) => (s <= 1 ? QR_TTL : s - 1));
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [qrCode]);
+
+  const pct = seconds / QR_TTL;
+  const radius = 112;
+  const circ = 2 * Math.PI * radius;
+  const dash = circ * pct;
+  const color = seconds > 30 ? "#22c55e" : seconds > 15 ? "#f59e0b" : "#ef4444";
+
+  return { seconds, dash, circ, radius, color };
+}
+
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -137,6 +168,7 @@ export default function Settings() {
 
   const isConnected = baileysStatus?.connected ?? false;
   const qrCode = baileysStatus?.qr ?? null;
+  const countdown = useQRCountdown(qrCode);
 
   if (settingsLoading) {
     return (
@@ -224,13 +256,44 @@ export default function Settings() {
               <div className="flex flex-col items-center gap-3 py-2">
                 {qrCode ? (
                   <>
-                    <div className="p-3 bg-white rounded-xl border-2 border-border shadow-sm">
-                      <img src={qrCode} alt="WhatsApp QR Code" className="w-52 h-52 object-contain" />
+                    {/* QR + circular countdown ring */}
+                    <div className="relative inline-flex items-center justify-center">
+                      <svg
+                        width="246"
+                        height="246"
+                        className="absolute top-0 left-0 -rotate-90"
+                        style={{ pointerEvents: "none" }}
+                      >
+                        {/* track */}
+                        <circle
+                          cx="123" cy="123" r={countdown.radius}
+                          fill="none" stroke="currentColor"
+                          strokeWidth="4"
+                          className="text-muted/40"
+                        />
+                        {/* progress */}
+                        <circle
+                          cx="123" cy="123" r={countdown.radius}
+                          fill="none"
+                          stroke={countdown.color}
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeDasharray={`${countdown.dash} ${countdown.circ}`}
+                          style={{ transition: "stroke-dasharray 0.8s linear, stroke 0.4s ease" }}
+                        />
+                      </svg>
+                      <div className="p-3 bg-white rounded-xl border-2 border-border shadow-sm">
+                        <img src={qrCode} alt="WhatsApp QR Code" className="w-52 h-52 object-contain" />
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground text-center flex items-center gap-1">
+
+                    {/* seconds label */}
+                    <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: countdown.color }}>
                       <RefreshCw className="h-3 w-3" />
-                      QR Code ينتهي بعد ~دقيقة ويتجدد تلقائياً
-                    </p>
+                      يتجدد خلال{" "}
+                      <span className="tabular-nums font-bold">{countdown.seconds}</span>
+                      {" "}ثانية
+                    </div>
                   </>
                 ) : (
                   <div className="flex flex-col items-center gap-3 py-4">
