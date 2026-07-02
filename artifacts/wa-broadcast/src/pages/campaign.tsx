@@ -264,9 +264,13 @@ export default function Campaign() {
   }
 
   const processFiles = useCallback(async (files: File[]) => {
-    const validFiles = files.filter((f) =>
-      f.type.startsWith("image/") || f.type.startsWith("video/")
-    );
+    const ACCEPTED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const ACCEPTED_VIDEO = ["video/mp4"];
+    const validFiles = files.filter((f) => ACCEPTED_IMAGE.includes(f.type) || ACCEPTED_VIDEO.includes(f.type));
+    const rejected = files.filter((f) => !ACCEPTED_IMAGE.includes(f.type) && !ACCEPTED_VIDEO.includes(f.type));
+    if (rejected.length > 0) {
+      toast({ title: "نوع ملف غير مدعوم", description: "الفيديو المدعوم هو MP4 فقط — وذلك لضمان التشغيل في WhatsApp", variant: "destructive" });
+    }
     if (!validFiles.length) return;
 
     const newItems: MediaItem[] = validFiles.map((file) => ({
@@ -407,7 +411,7 @@ export default function Campaign() {
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/3gpp,video/quicktime,video/webm,video/x-msvideo"
+        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4"
         className="hidden"
         onChange={handleFileInput}
       />

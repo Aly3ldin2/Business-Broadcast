@@ -236,16 +236,18 @@ export class BaileysService {
     });
   }
 
-  async sendVideo(phone: string, buffer: Buffer, mimetype: string, caption?: string) {
+  async sendVideo(phone: string, buffer: Buffer, _mimetype: string, caption?: string) {
     if (!this.sock || !this._connected) {
       throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
     }
     const jid = `${phone}@s.whatsapp.net`;
+    // Always send as video/mp4 — WhatsApp only plays H.264/MP4 videos natively
     await this.sock.sendMessage(jid, {
       video: buffer,
-      mimetype,
+      mimetype: "video/mp4",
       fileLength: buffer.length,
       gifPlayback: false,
+      ptv: false,
       ...(caption ? { caption } : {}),
     });
   }
