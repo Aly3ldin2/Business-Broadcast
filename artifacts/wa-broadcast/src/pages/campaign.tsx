@@ -81,7 +81,7 @@ function getVideoDuration(file: File): Promise<number> {
     };
     video.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("فشل قراءة مدة الفيديو"));
+      reject(new Error("Failed to read video duration"));
     };
     video.src = url;
   });
@@ -262,7 +262,7 @@ export default function Campaign() {
     });
     const data = (await res.json()) as { id?: string; error?: string };
     if (res.ok && data.id) return data.id;
-    throw new Error(data.error ?? "فشل الرفع");
+    throw new Error(data.error ?? "Upload failed");
   }
 
   const processFiles = useCallback(async (files: File[]) => {
@@ -290,7 +290,7 @@ export default function Campaign() {
       if (item.file.size > MAX_FILE_SIZE) {
         setMediaItems((prev) =>
           prev.map((m) => m.id === item.id
-            ? { ...m, uploading: false, uploadError: "الملف أكبر من 300MB" }
+            ? { ...m, uploading: false, uploadError: t("campaign_file_too_large") }
             : m)
         );
         continue;
@@ -303,7 +303,7 @@ export default function Campaign() {
           if (duration > MAX_VIDEO_DURATION) {
             setMediaItems((prev) =>
               prev.map((m) => m.id === item.id
-                ? { ...m, uploading: false, uploadError: `الفيديو ${Math.round(duration / 60)} دقيقة — الحد الأقصى 5 دقائق` }
+                ? { ...m, uploading: false, uploadError: t("campaign_video_too_long", { n: Math.round(duration / 60) }) }
                 : m)
             );
             continue;
@@ -322,13 +322,13 @@ export default function Campaign() {
         setMediaItems((prev) =>
           prev.map((m) =>
             m.id === item.id
-              ? { ...m, uploading: false, uploadError: (e as Error)?.message ?? "خطأ في الرفع" }
+              ? { ...m, uploading: false, uploadError: (e as Error)?.message ?? t("campaign_upload_error") }
               : m
           )
         );
       }
     }
-  }, []);
+  }, [t]);
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -438,12 +438,12 @@ export default function Campaign() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <StepBadge n={1} />أرقام الهاتف
+              <StepBadge n={1} />{t("campaign_step_phones")}
             </CardTitle>
             {phoneMode === "manual" && settings?.hasGithubToken && phones.length > 0 && (
               <Button variant="outline" size="sm" className="h-7 text-xs"
                 onClick={() => setIsSaveListOpen(true)}>
-                <CloudUpload className="h-3 w-3 mr-1" />حفظ كقائمة
+                <CloudUpload className="h-3 w-3 mr-1" />{t("campaign_save_list")}
               </Button>
             )}
           </div>
@@ -539,7 +539,7 @@ export default function Campaign() {
                     </button>
                     {bulkText.trim() && (
                       <span className="text-xs text-muted-foreground">
-                        {parseRawNumbers(bulkText, country.dialCode).length} رقم
+                        {parseRawNumbers(bulkText, country.dialCode).length} {t("campaign_number_label")}
                       </span>
                     )}
                   </div>
@@ -632,7 +632,7 @@ export default function Campaign() {
                           </div>
                         )}
                         {isExpanded && list.phones.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-3">القائمة فاضية</p>
+                          <p className="text-xs text-muted-foreground text-center py-3">{t("campaign_list_empty")}</p>
                         )}
                       </div>
                     );
@@ -661,7 +661,7 @@ export default function Campaign() {
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="اكتب نص الرسالة هنا... (يمكن تركه فارغاً إذا ستُرسل صور أو فيديوهات فقط)"
+            placeholder={t("campaign_message_placeholder")}
             rows={5}
             className="resize-none font-medium"
           />
@@ -671,7 +671,7 @@ export default function Campaign() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <PenLine className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">التوقيع</span>
+                <span className="text-xs font-medium text-muted-foreground">{t("campaign_signature")}</span>
                 {signature.trim() && (
                   <button
                     onClick={toggleSignature}
@@ -681,12 +681,12 @@ export default function Campaign() {
                         : "text-muted-foreground border-muted-foreground/20"
                     }`}
                   >
-                    {signatureEnabled ? "مفعّل" : "معطّل"}
+                    {signatureEnabled ? t("campaign_sig_enabled") : t("campaign_sig_disabled")}
                   </button>
                 )}
               </div>
               <button onClick={startEditSignature} className="text-xs text-primary hover:underline flex items-center gap-1">
-                <Pencil className="h-3 w-3" />تعديل
+                <Pencil className="h-3 w-3" />{t("edit")}
               </button>
             </div>
 
@@ -695,23 +695,23 @@ export default function Campaign() {
                 <textarea
                   value={sigDraft}
                   onChange={(e) => setSigDraft(e.target.value)}
-                  placeholder="مثال: فريق المبيعات — 01xxxxxxxxxx"
+                  placeholder={t("campaign_signature_placeholder")}
                   rows={2}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none outline-none focus:border-primary transition-colors"
                 />
                 <div className="flex gap-2">
                   <button onClick={saveSignature} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
-                    <Check className="h-3 w-3" />حفظ
+                    <Check className="h-3 w-3" />{t("campaign_save")}
                   </button>
                   <button onClick={() => setIsEditingSignature(false)} className="px-3 py-1.5 rounded-lg border text-xs text-muted-foreground hover:bg-muted transition-colors">
-                    إلغاء
+                    {t("campaign_cancel")}
                   </button>
                 </div>
               </div>
             ) : signature.trim() ? (
               <p className="text-xs text-muted-foreground whitespace-pre-wrap">{signature}</p>
             ) : (
-              <p className="text-xs text-muted-foreground/50">لا يوجد توقيع — اضغط "تعديل" لإضافة واحد</p>
+              <p className="text-xs text-muted-foreground/50">{t("campaign_no_signature")}</p>
             )}
           </div>
         </CardContent>
@@ -738,10 +738,8 @@ export default function Campaign() {
             }`}
           >
             <UploadCloud className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-            <p className="text-sm text-muted-foreground">اسحب ملفات هنا أو اضغط للاختيار</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              صور: JPG, PNG, WebP, GIF&nbsp;&nbsp;|&nbsp;&nbsp;فيديو: MP4, MOV, WebM (حتى 5 دقائق)
-            </p>
+            <p className="text-sm text-muted-foreground">{t("campaign_drag_drop")}</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">{t("campaign_accepted_formats")}</p>
           </div>
 
           {mediaItems.length > 0 && (
@@ -808,12 +806,12 @@ export default function Campaign() {
                 <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                   {readyMedia.filter(m => m.type === "image").length > 0 && <ImageIcon className="h-3 w-3" />}
                   {readyMedia.filter(m => m.type === "video").length > 0 && <Video className="h-3 w-3" />}
-                  {readyMedia.length} ملف{readyMedia.length > 1 ? " (تُرسل أولاً)" : " (يُرسل أولاً)"}
+                  {t("campaign_files_sent_first", { n: readyMedia.length })}
                 </span>
               )}
               {hasText && (
                 <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted border">
-                  النص {readyMedia.length > 0 ? "(يُرسل بعد الميديا)" : "(فقط)"}
+                  {readyMedia.length > 0 ? t("campaign_text_sent_after") : t("campaign_text_sent_only")}
                 </span>
               )}
             </div>

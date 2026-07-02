@@ -105,12 +105,20 @@ const T: Record<string, { ar: string; en: string }> = {
   campaign_save_signature: { ar: "حفظ", en: "Save" },
 
   campaign_step_media: { ar: "صور وفيديو", en: "Photos & Video" },
-  campaign_drag_drop: { ar: "اسحب ملفاتك هنا أو", en: "Drag files here or" },
+  campaign_drag_drop: { ar: "اسحب ملفات هنا أو اضغط للاختيار", en: "Drag files here or click to choose" },
   campaign_browse: { ar: "تصفح", en: "Browse" },
-  campaign_accepted_formats: { ar: "JPG، PNG، WebP، GIF، MP4 — حتى 300MB", en: "JPG, PNG, WebP, GIF, MP4 — up to 300MB" },
+  campaign_accepted_formats: { ar: "صور: JPG, PNG, WebP, GIF  |  فيديو: MP4 (حتى 5 دقائق)", en: "Images: JPG, PNG, WebP, GIF  |  Video: MP4 (up to 5 min)" },
   campaign_video_max: { ar: "الفيديو أكثر من 5 دقائق — الحد الأقصى 5 دقائق", en: "Video exceeds 5 minutes — maximum is 5 minutes" },
+  campaign_video_too_long: { ar: "الفيديو {n} دقيقة — الحد الأقصى 5 دقائق", en: "Video is {n} min — max is 5 minutes" },
+  campaign_file_too_large: { ar: "الملف أكبر من 300MB", en: "File exceeds 300MB" },
+  campaign_upload_error: { ar: "خطأ في الرفع", en: "Upload error" },
   campaign_unsupported_type: { ar: "نوع ملف غير مدعوم", en: "Unsupported file type" },
   campaign_mp4_only: { ar: "الفيديو المدعوم هو MP4 فقط — وذلك لضمان التشغيل في WhatsApp", en: "Only MP4 video is supported — to ensure playback in WhatsApp" },
+  campaign_list_empty: { ar: "القائمة فاضية", en: "List is empty" },
+  campaign_number_label: { ar: "رقم", en: "number(s)" },
+  campaign_sig_enabled: { ar: "مفعّل", en: "Enabled" },
+  campaign_sig_disabled: { ar: "معطّل", en: "Disabled" },
+  campaign_no_signature: { ar: "لا يوجد توقيع — اضغط «تعديل» لإضافة واحد", en: "No signature — click «Edit» to add one" },
 
   campaign_send_btn: { ar: "إرسال", en: "Send" },
   campaign_sending: { ar: "جاري الإرسال...", en: "Sending..." },
@@ -250,13 +258,6 @@ const T: Record<string, { ar: string; en: string }> = {
   edit: { ar: "تعديل", en: "Edit" },
   delete_confirm: { ar: "حذف", en: "Delete" },
 
-  // ── Extra campaign keys ────────────────────────────────────────────────────
-  campaign_add_phone: { ar: "إضافة الرقم", en: "Add Number" },
-  campaign_bulk_paste: { ar: "لصق أرقام متعددة", en: "Paste Multiple Numbers" },
-  campaign_contacts_count: { ar: "الأرقام المضافة ({n})", en: "Added numbers ({n})" },
-  campaign_deselect_all: { ar: "إلغاء التحديد", en: "Deselect All" },
-  campaign_total_messages: { ar: "إجمالي", en: "total" },
-  lists_clear_all: { ar: "مسح الكل", en: "Clear All" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
