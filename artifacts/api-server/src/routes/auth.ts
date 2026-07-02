@@ -122,14 +122,9 @@ router.post("/auth/request-reset", async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await requestPasswordReset(email.trim());
+  // Fire-and-forget — never reveal whether email exists or whether sending succeeded
+  void requestPasswordReset(email.trim()).catch(() => {/* logged inside */});
 
-  if (!result.success) {
-    res.status(500).json({ error: result.error ?? "فشل إرسال البريد" });
-    return;
-  }
-
-  // Always return success to avoid revealing whether the email is registered
   res.json({ success: true });
 });
 

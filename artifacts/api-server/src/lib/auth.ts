@@ -131,8 +131,8 @@ export async function requestPasswordReset(
     .delete(passwordResetTokensTable)
     .where(eq(passwordResetTokensTable.userId, appUser.id));
 
-  // Generate a 6-digit OTP
-  const token = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate a 6-digit OTP using a cryptographically secure source
+  const token = crypto.randomInt(100000, 999999).toString();
 
   await db.insert(passwordResetTokensTable).values({
     userId: appUser.id,

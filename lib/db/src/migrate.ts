@@ -109,5 +109,7 @@ export function runMigrations(sqlite: DatabaseSync): void {
   `);
 
   // Additive migrations — safe to run on existing DBs
-  try { sqlite.exec("ALTER TABLE app_users ADD COLUMN email TEXT UNIQUE"); } catch { /* column already exists */ }
+  // SQLite does not support ALTER TABLE ADD COLUMN with UNIQUE — add plain column then create index separately
+  try { sqlite.exec("ALTER TABLE app_users ADD COLUMN email TEXT"); } catch { /* column already exists */ }
+  try { sqlite.exec("CREATE UNIQUE INDEX IF NOT EXISTS UDX_app_users_email ON app_users(email) WHERE email IS NOT NULL"); } catch { /* index already exists */ }
 }
