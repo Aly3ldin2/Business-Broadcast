@@ -3,10 +3,19 @@ import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 export const appUsersTable = sqliteTable("app_users", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   username: text("username").notNull().unique(),
+  email: text("email").unique(),
   passwordHash: text("password_hash").notNull(),
   isFirstLogin: integer("is_first_login", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()).$onUpdate(() => new Date().toISOString()),
+});
+
+export const passwordResetTokensTable = sqliteTable("password_reset_tokens", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  usedAt: integer("used_at", { mode: "timestamp_ms" }),
 });
 
 export type AppUser = typeof appUsersTable.$inferSelect;

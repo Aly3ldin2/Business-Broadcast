@@ -13,6 +13,7 @@ A free, self-hosted broadcast system for WhatsApp Business API — lets business
 - Optional env: `DATABASE_PATH` — SQLite file path (defaults to `app.db` in the project root)
 - Optional env: `BAILEYS_AUTH_PATH` — Baileys session directory (defaults to `.baileys_auth/`)
 - Required env: `PORT` — injected automatically by Replit workflows
+- Email (forgot password): `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` — all required to enable email password reset
 
 ## Stack
 

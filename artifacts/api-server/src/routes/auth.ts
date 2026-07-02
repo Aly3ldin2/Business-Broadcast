@@ -4,7 +4,8 @@ import {
   changeCredentials,
   createFirstUser,
   hasAnyUser,
-  resetPasswordWithGistToken,
+  requestPasswordReset,
+  verifyAndConsumeResetToken,
   createSession,
   clearSession,
   getSessionId,
@@ -26,14 +27,18 @@ router.get("/auth/setup-status", async (_req: Request, res: Response) => {
 
 // First-run setup — creates the initial user; rejected once a user exists
 router.post("/auth/setup", async (req: Request, res: Response) => {
-  const { username, password } = req.body as { username?: string; password?: string };
+  const { username, password, email } = req.body as {
+    username?: string;
+    password?: string;
+    email?: string;
+  };
 
   if (!username || !password) {
     res.status(400).json({ error: "اسم المستخدم وكلمة المرور مطلوبان" });
     return;
   }
 
-  const result = await createFirstUser(username.trim(), password);
+  const result = await createFirstUser(username.trim(), password, email?.trim());
   if (!result.success || !result.user) {
     res.status(400).json({ error: result.error ?? "فشل إنشاء الحساب" });
     return;
@@ -108,25 +113,36 @@ router.post("/auth/change-credentials", async (req: Request, res: Response) => {
   res.json({ success: true, message: "تم تغيير بيانات الدخول. سجّل دخولك مجدداً." });
 });
 
-// Forgot password — verified via GitHub Gist token
-router.post("/auth/forgot-password", async (req: Request, res: Response) => {
-  const { username, gistToken, newPassword } = req.body as {
-    username?: string;
-    gistToken?: string;
-    newPassword?: string;
-  };
+// Step 1 of password reset — send OTP to email
+router.post("/auth/request-reset", async (req: Request, res: Response) => {
+  const { email } = req.body as { email?: string };
 
-  if (!username || !gistToken || !newPassword) {
-    res.status(400).json({ error: "جميع الحقول مطلوبة" });
+  if (!email?.trim()) {
+    res.status(400).json({ error: "البريد الإلكتروني مطلوب" });
     return;
   }
 
-  if (newPassword.length < 6) {
-    res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+  const result = await requestPasswordReset(email.trim());
+
+  if (!result.success) {
+    res.status(500).json({ error: result.error ?? "فشل إرسال البريد" });
     return;
   }
 
-  const result = await resetPasswordWithGistToken(username.trim(), gistToken.trim(), newPassword);
+  // Always return success to avoid revealing whether the email is registered
+  res.json({ success: true });
+});
+
+// Step 2 of password reset — verify OTP and set new password
+router.post("/auth/reset-password", async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+
+  if (!token?.trim() || !newPassword) {
+    res.status(400).json({ error: "الكود وكلمة المرور الجديدة مطلوبان" });
+    return;
+  }
+
+  const result = await verifyAndConsumeResetToken(token.trim(), newPassword);
 
   if (!result.success || !result.user) {
     res.status(400).json({ error: result.error ?? "فشل إعادة تعيين كلمة المرور" });

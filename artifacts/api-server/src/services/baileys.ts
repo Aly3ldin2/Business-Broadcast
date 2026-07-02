@@ -57,6 +57,8 @@ export class BaileysService {
         printQRInTerminal: false,
         browser: ["WhatsApp Broadcast", "Chrome", "1.0.0"],
         connectTimeoutMs: 60_000,
+        // Keep the WebSocket alive with periodic pings to prevent idle disconnects
+        keepAliveIntervalMs: 25_000,
       });
 
       this.sock = sock;

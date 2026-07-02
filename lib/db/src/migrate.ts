@@ -98,5 +98,16 @@ export function runMigrations(sqlite: DatabaseSync): void {
       status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER
+    );
   `);
+
+  // Additive migrations — safe to run on existing DBs
+  try { sqlite.exec("ALTER TABLE app_users ADD COLUMN email TEXT UNIQUE"); } catch { /* column already exists */ }
 }
