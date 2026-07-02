@@ -229,7 +229,7 @@ export default function Settings() {
                     </div>
                     <p className="text-xs text-muted-foreground text-center flex items-center gap-1">
                       <RefreshCw className="h-3 w-3" />
-                      QR Code ينتهي بعد ~20 ثانية ويتجدد تلقائياً
+                      QR Code ينتهي بعد ~دقيقة ويتجدد تلقائياً
                     </p>
                   </>
                 ) : (
