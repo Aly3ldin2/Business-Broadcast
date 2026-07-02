@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
 
 export const SESSION_COOKIE = "sid";
-export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const SESSION_TTL = 365 * 24 * 60 * 60 * 1000; // 1 year
 
 export interface SessionData {
   user: AuthUser;
@@ -164,6 +164,13 @@ export async function createSession(data: SessionData): Promise<string> {
     expire: new Date(Date.now() + SESSION_TTL),
   });
   return sid;
+}
+
+export async function renewSession(sid: string): Promise<void> {
+  await db
+    .update(sessionsTable)
+    .set({ expire: new Date(Date.now() + SESSION_TTL) })
+    .where(eq(sessionsTable.sid, sid));
 }
 
 export async function getSession(sid: string): Promise<SessionData | null> {

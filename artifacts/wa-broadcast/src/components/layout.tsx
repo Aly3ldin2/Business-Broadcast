@@ -1,19 +1,14 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Radio, Moon, Sun, LogOut } from "lucide-react";
+import { Send, Settings, Users, Menu, Radio, Moon, Sun, LogOut, Globe } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
+import { useI18n } from "@/lib/i18n";
 
 interface LayoutProps {
   children: ReactNode;
 }
-
-const navigation = [
-  { name: "Home", href: "/", icon: Send },
-  { name: "Lists", href: "/lists", icon: Users },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
@@ -48,20 +43,36 @@ function SiteLogo() {
 }
 
 function ThemeToggle({ isDark, onToggle }: { isDark: boolean; onToggle: () => void }) {
+  const { t } = useI18n();
   return (
     <button
       onClick={onToggle}
-      title={isDark ? "تفعيل الوضع الفاتح" : "تفعيل الوضع المظلم"}
+      title={isDark ? t("nav_light_mode") : t("nav_dark_mode")}
       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
     >
       {isDark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
-      {isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+      {isDark ? t("nav_light_mode") : t("nav_dark_mode")}
+    </button>
+  );
+}
+
+function LangToggle() {
+  const { lang, setLang, t } = useI18n();
+  return (
+    <button
+      onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+      title={t("lang_switch")}
+      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+    >
+      <Globe className="h-4 w-4 shrink-0" />
+      {t("lang_switch")}
     </button>
   );
 }
 
 function LogoutButton() {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
@@ -81,7 +92,7 @@ function LogoutButton() {
       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
     >
       <LogOut className="h-4 w-4 shrink-0" />
-      تسجيل الخروج
+      {t("nav_logout")}
     </button>
   );
 }
@@ -89,13 +100,20 @@ function LogoutButton() {
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { isDark, toggle } = useTheme();
+  const { t, dir } = useI18n();
+
+  const navigation = [
+    { nameKey: "nav_home", href: "/", icon: Send },
+    { nameKey: "nav_lists", href: "/lists", icon: Users },
+    { nameKey: "nav_settings", href: "/settings", icon: Settings },
+  ];
 
   const NavLinks = () => (
     <nav className="flex flex-1 flex-col gap-0.5 py-3 px-2">
       {navigation.map((item) => {
         const isActive = location === item.href;
         return (
-          <Link key={item.name} href={item.href}>
+          <Link key={item.nameKey} href={item.href}>
             <div
               className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${
                 isActive
@@ -103,8 +121,8 @@ export function Layout({ children }: LayoutProps) {
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <item.icon className="mr-3 h-4 w-4 shrink-0" />
-              {item.name}
+              <item.icon className={`${dir === "rtl" ? "ml-3" : "mr-3"} h-4 w-4 shrink-0`} />
+              {t(item.nameKey)}
             </div>
           </Link>
         );
@@ -113,7 +131,7 @@ export function Layout({ children }: LayoutProps) {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" dir={dir}>
       <div className="flex h-screen overflow-hidden">
         {/* Mobile top bar */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b flex items-center px-4 gap-3">
@@ -123,12 +141,13 @@ export function Layout({ children }: LayoutProps) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-52 p-0">
+            <SheetContent side={dir === "rtl" ? "right" : "left"} className="w-52 p-0">
               <div className="flex h-14 shrink-0 items-center px-4 border-b">
                 <SiteLogo />
               </div>
               <NavLinks />
               <div className="p-2 border-t space-y-1">
+                <LangToggle />
                 <ThemeToggle isDark={isDark} onToggle={toggle} />
                 <LogoutButton />
               </div>
@@ -153,6 +172,7 @@ export function Layout({ children }: LayoutProps) {
             <NavLinks />
           </div>
           <div className="p-2 border-t space-y-1">
+            <LangToggle />
             <ThemeToggle isDark={isDark} onToggle={toggle} />
             <LogoutButton />
           </div>

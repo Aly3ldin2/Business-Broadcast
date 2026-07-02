@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import type { AuthUser } from "@workspace/api-zod";
-import { clearSession, getSessionId, getSession } from "../lib/auth";
+import { clearSession, getSessionId, getSession, renewSession, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
 
 declare global {
   namespace Express {
@@ -38,5 +38,17 @@ export async function authMiddleware(
   }
 
   req.user = session.user;
+
+  // Sliding session — renew expiry on every authenticated request
+  // and refresh the cookie so the browser knows the new expiry.
+  void renewSession(sid).catch(() => {});
+  res.cookie(SESSION_COOKIE, sid, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_TTL,
+  });
+
   next();
 }

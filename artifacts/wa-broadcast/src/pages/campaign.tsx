@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { CountryPicker } from "@/components/country-picker";
 import { findCountry, parseRawNumbers, type Country } from "@/data/countries";
+import { useI18n } from "@/lib/i18n";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 const MAX_VIDEO_DURATION = 300; // 5 minutes in seconds
@@ -89,6 +90,7 @@ function getVideoDuration(file: File): Promise<number> {
 export default function Campaign() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { t, dir } = useI18n();
 
   // ── Phone input mode ────────────────────────────────────────────
   const [phoneMode, setPhoneMode] = useState<"lists" | "manual">("lists");
@@ -269,7 +271,7 @@ export default function Campaign() {
     const validFiles = files.filter((f) => ACCEPTED_IMAGE.includes(f.type) || ACCEPTED_VIDEO.includes(f.type));
     const rejected = files.filter((f) => !ACCEPTED_IMAGE.includes(f.type) && !ACCEPTED_VIDEO.includes(f.type));
     if (rejected.length > 0) {
-      toast({ title: "نوع ملف غير مدعوم", description: "الفيديو المدعوم هو MP4 فقط — وذلك لضمان التشغيل في WhatsApp", variant: "destructive" });
+      toast({ title: t("campaign_unsupported_type"), description: t("campaign_mp4_only"), variant: "destructive" });
     }
     if (!validFiles.length) return;
 
@@ -370,11 +372,11 @@ export default function Campaign() {
         data: { phones, message: fullMessage, mediaItems: readyMedia },
       });
       setSendResults(result.results);
-      toast({ title: `تم الإرسال: ${result.sent} نجح، ${result.failed} فشل` });
+      toast({ title: t("campaign_sent_summary", { sent: result.sent, failed: result.failed }) });
     } catch (e: unknown) {
       toast({
-        title: "فشل الإرسال",
-        description: (e as Error)?.message ?? "تحقق من اتصال WhatsApp",
+        title: t("campaign_send_fail"),
+        description: (e as Error)?.message ?? t("campaign_check_wa"),
         variant: "destructive",
       });
     } finally {
@@ -396,9 +398,9 @@ export default function Campaign() {
       queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
       setIsSaveListOpen(false);
       setListName("");
-      toast({ title: `تم حفظ "${name}" — ${phones.length} رقم` });
+      toast({ title: t("campaign_saved_list", { name, n: phones.length }) });
     } catch (e: unknown) {
-      toast({ title: "فشل الحفظ", description: (e as Error)?.message, variant: "destructive" });
+      toast({ title: t("campaign_save_fail"), description: (e as Error)?.message, variant: "destructive" });
     }
   }
 
@@ -406,7 +408,7 @@ export default function Campaign() {
   const failCount = sendResults?.filter((r) => !r.success).length ?? 0;
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6 max-w-3xl mx-auto" dir={dir}>
       <input
         ref={fileInputRef}
         type="file"
@@ -417,18 +419,16 @@ export default function Campaign() {
       />
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">رسالة جديدة</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          اختار جهات الاتصال، اكتب الرسالة، أضف صور وفيديوهات، ثم أرسل
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t("campaign_title")}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">{t("campaign_subtitle")}</p>
       </div>
 
       {!isConnected && (
         <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
-            <strong>تنبيه:</strong> لازم تربط WhatsApp الأول.{" "}
-            <a href="/settings" className="underline font-medium">اذهب للإعدادات وامسح QR Code</a>
+            {t("campaign_wa_not_connected")}{" "}
+            <a href="/settings" className="underline font-medium">{t("campaign_wa_go_settings")}</a>
           </div>
         </div>
       )}
@@ -462,7 +462,7 @@ export default function Campaign() {
                 }`}
               >
                 {mode === "manual" ? <KeyboardIcon className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-                {mode === "manual" ? "إدخال يدوي" : "من القوائم"}
+                {mode === "manual" ? t("campaign_manual") : t("campaign_from_lists")}
                 {mode === "lists" && hasLists && (
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                     phoneMode === "lists"
@@ -500,21 +500,21 @@ export default function Campaign() {
                     disabled={phoneInput.replace(/\D/g, "").length < 7}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors active:scale-95"
                   >
-                    <Plus className="h-4 w-4" />إضافة الرقم
+                    <Plus className="h-4 w-4" />{t("campaign_add_phone")}
                   </button>
                   <button
                     onClick={() => { setShowBulkPaste((v) => !v); setBulkText(""); }}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   >
-                    <Hash className="h-3.5 w-3.5" />لصق أرقام متعددة
+                    <Hash className="h-3.5 w-3.5" />{t("campaign_bulk_paste")}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">اضغط Enter أو زرار الإضافة — الأصفار الأولى تُحذف تلقائياً</p>
+                <p className="text-xs text-muted-foreground">{t("campaign_or_paste")}</p>
               </div>
 
               {showBulkPaste && (
                 <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
-                  <p className="text-xs text-muted-foreground">الصق أرقاماً (كل رقم في سطر أو مفصولة بفواصل)</p>
+                  <p className="text-xs text-muted-foreground">{t("campaign_paste_hint")}</p>
                   <textarea
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
@@ -529,13 +529,13 @@ export default function Campaign() {
                       disabled={!bulkText.trim()}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
                     >
-                      <Plus className="h-4 w-4" />إضافة الكل
+                      <Plus className="h-4 w-4" />{t("campaign_add_all")}
                     </button>
                     <button
                       onClick={() => { setShowBulkPaste(false); setBulkText(""); }}
                       className="px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:bg-muted transition-colors"
                     >
-                      إلغاء
+                      {t("campaign_cancel")}
                     </button>
                     {bulkText.trim() && (
                       <span className="text-xs text-muted-foreground">
@@ -549,8 +549,8 @@ export default function Campaign() {
               {phoneList.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">الأرقام المضافة ({phoneList.length})</p>
-                    <button onClick={() => setPhoneList([])} className="text-xs text-destructive hover:underline">مسح الكل</button>
+                    <p className="text-xs font-medium text-muted-foreground">{t("campaign_contacts_count", { n: phoneList.length })}</p>
+                    <button onClick={() => setPhoneList([])} className="text-xs text-destructive hover:underline">{t("lists_clear_all")}</button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {phoneList.map((num) => (
@@ -574,15 +574,15 @@ export default function Campaign() {
               {!settings?.hasGithubToken ? (
                 <div className="text-center py-8 space-y-2">
                   <Users className="h-9 w-9 mx-auto text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">محتاج GitHub Token لتحميل القوائم</p>
-                  <a href="/settings" className="text-xs underline text-primary">اذهب للإعدادات</a>
+                  <p className="text-sm text-muted-foreground">{t("campaign_no_lists")}</p>
+                  <a href="/settings" className="text-xs underline text-primary">{t("campaign_setup_github")}</a>
                 </div>
               ) : !hasLists ? (
                 <div className="text-center py-8 space-y-2">
                   <Users className="h-9 w-9 mx-auto text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">لا توجد قوائم محفوظة بعد</p>
+                  <p className="text-sm text-muted-foreground">{t("lists_empty_title")}</p>
                   <button onClick={() => setPhoneMode("manual")} className="text-xs underline text-primary">
-                    أضف أرقاماً يدوياً واحفظها كقائمة
+                    {t("lists_empty_subtitle")}
                   </button>
                 </div>
               ) : (
@@ -639,8 +639,8 @@ export default function Campaign() {
                   })}
                   {selectedPhones.size > 0 && (
                     <div className="flex items-center justify-between pt-1">
-                      <p className="text-xs text-muted-foreground">تم تحديد <strong>{selectedPhones.size}</strong> جهة اتصال</p>
-                      <button onClick={() => setSelectedPhones(new Set())} className="text-xs text-destructive hover:underline">إلغاء التحديد</button>
+                      <p className="text-xs text-muted-foreground"><strong>{selectedPhones.size}</strong> {t("campaign_contacts_label")}</p>
+                      <button onClick={() => setSelectedPhones(new Set())} className="text-xs text-destructive hover:underline">{t("campaign_deselect_all")}</button>
                     </div>
                   )}
                 </div>
@@ -654,8 +654,7 @@ export default function Campaign() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <StepBadge n={2} />الرسالة النصية
-            <span className="text-xs font-normal text-muted-foreground">(اختياري — تُرسل منفردة أو مع ميديا)</span>
+            <StepBadge n={2} />{t("campaign_step_message")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -722,8 +721,7 @@ export default function Campaign() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <StepBadge n={3} />صور وفيديوهات
-            <span className="text-xs font-normal text-muted-foreground">(اختياري — تصل فوق النص)</span>
+            <StepBadge n={3} />{t("campaign_step_media")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -828,9 +826,9 @@ export default function Campaign() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              نتائج الإرسال
-              <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">{successCount} نجح</Badge>
-              {failCount > 0 && <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">{failCount} فشل</Badge>}
+              {t("campaign_results_title")}
+              <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">{successCount} {t("campaign_succeeded")}</Badge>
+              {failCount > 0 && <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">{failCount} {t("campaign_failed")}</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -855,11 +853,11 @@ export default function Campaign() {
         <div className="text-xs text-muted-foreground">
           {phones.length > 0 ? (
             <span>
-              <strong>{phones.length}</strong> جهة اتصال
-              {msgsPerRecipient > 1 ? ` × ${msgsPerRecipient} رسائل = ${totalMessages} إجمالي` : ""}
+              <strong>{phones.length}</strong> {t("campaign_contacts_label")}
+              {msgsPerRecipient > 1 ? ` × ${msgsPerRecipient} = ${totalMessages} ${t("campaign_total_messages")}` : ""}
             </span>
           ) : (
-            <span>لم تحدد أي أرقام بعد</span>
+            <span>{t("campaign_no_phones")}</span>
           )}
         </div>
         <Button
@@ -869,8 +867,8 @@ export default function Campaign() {
           className="gap-2"
         >
           {isSending
-            ? <><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</>
-            : <><Send className="h-4 w-4" />إرسال</>
+            ? <><Loader2 className="h-4 w-4 animate-spin" />{t("campaign_sending")}</>
+            : <><Send className="h-4 w-4" />{t("campaign_send_btn")}</>
           }
         </Button>
       </div>
@@ -879,35 +877,35 @@ export default function Campaign() {
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>تأكيد الإرسال</DialogTitle>
+            <DialogTitle>{t("campaign_confirm_title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-lg bg-muted text-center">
                 <p className="text-2xl font-bold">{phones.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">جهة اتصال</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("campaign_contacts_label")}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted text-center">
                 <p className="text-2xl font-bold">{totalMessages}</p>
-                <p className="text-xs text-muted-foreground mt-1">رسالة إجمالي</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("campaign_total_messages")}</p>
               </div>
             </div>
 
             {/* What will be sent */}
             <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">ما سيتم إرساله لكل شخص:</p>
+              <p className="text-xs font-medium text-muted-foreground">{t("campaign_will_send")}</p>
               {readyMedia.length > 0 && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">١</span>
-                  <span>{readyMedia.length} ملف ميديا (صور/فيديو) — تُرسل أولاً</span>
+                  <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">1</span>
+                  <span>{readyMedia.length} {t("campaign_media_first")}</span>
                 </div>
               )}
               {hasText && (
                 <div className="flex items-center gap-2 text-xs">
                   <span className="w-4 h-4 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-[10px]">
-                    {readyMedia.length > 0 ? "٢" : "١"}
+                    {readyMedia.length > 0 ? "2" : "1"}
                   </span>
-                  <span>رسالة نصية {readyMedia.length > 0 ? "— تُرسل بعد الميديا" : ""}</span>
+                  <span>{readyMedia.length > 0 ? t("campaign_text_after") : t("campaign_text_only")}</span>
                 </div>
               )}
               {hasText && (
@@ -916,9 +914,9 @@ export default function Campaign() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>إلغاء</Button>
+            <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>{t("campaign_cancel")}</Button>
             <Button onClick={() => void handleSend()}>
-              <Send className="h-4 w-4 mr-2" />أرسل الآن
+              <Send className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"}`} />{t("campaign_send_now")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -928,27 +926,27 @@ export default function Campaign() {
       <Dialog open={isSaveListOpen} onOpenChange={setIsSaveListOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>حفظ كقائمة</DialogTitle>
+            <DialogTitle>{t("campaign_save_list_title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium">اسم القائمة</label>
+              <label className="text-sm font-medium">{t("campaign_list_name")}</label>
               <Input
                 value={listName}
                 onChange={(e) => setListName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") void handleSaveList(); }}
-                placeholder="مثال: عملاء فبراير"
+                placeholder={t("campaign_list_name_placeholder")}
                 className="mt-1.5"
                 autoFocus
               />
             </div>
-            <p className="text-xs text-muted-foreground">سيتم حفظ {phones.length} رقم في هذه القائمة</p>
+            <p className="text-xs text-muted-foreground">{t("campaign_will_save", { n: phones.length })}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSaveListOpen(false)}>إلغاء</Button>
+            <Button variant="outline" onClick={() => setIsSaveListOpen(false)}>{t("campaign_cancel")}</Button>
             <Button onClick={() => void handleSaveList()} disabled={!listName.trim() || saveMutation.isPending}>
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              حفظ
+              {saveMutation.isPending ? <Loader2 className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"} animate-spin`} /> : null}
+              {t("campaign_save")}
             </Button>
           </DialogFooter>
         </DialogContent>

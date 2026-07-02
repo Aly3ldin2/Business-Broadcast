@@ -27,26 +27,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const GITHUB_STEPS = [
-  {
-    n: 1,
-    title: "أنشئ GitHub Personal Access Token",
-    desc: 'اذهب لـ GitHub Settings > Developer settings > Personal access tokens > Tokens (classic). اضغط "Generate new token".',
-    link: "https://github.com/settings/tokens/new",
-    linkText: "أنشئ Token على GitHub",
-  },
-  {
-    n: 2,
-    title: "اختار الصلاحيات",
-    desc: 'من الـ Scopes، اختار فقط "gist". ده كافي لحفظ وتحميل القوائم.',
-  },
-  {
-    n: 3,
-    title: "انسخ التوكن وحطه هنا",
-    desc: "انسخ التوكن وحطه في الخانة دي وحفظ.",
-  },
-];
+import { useI18n } from "@/lib/i18n";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
@@ -82,6 +63,7 @@ function useQRCountdown(qrCode: string | null) {
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { t, dir } = useI18n();
 
   const { data: settings, isLoading: settingsLoading } = useGetSettings();
   const saveMutation = useSaveSettings();
@@ -121,7 +103,7 @@ export default function Settings() {
     if (githubForm.gistId !== undefined) data.gistId = githubForm.gistId;
     await saveMutation.mutateAsync({ data });
     await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
-    toast({ title: "تم حفظ بيانات GitHub" });
+    toast({ title: t("settings_github_saved") });
   }
 
   async function handleWALogout() {
@@ -129,9 +111,9 @@ export default function Settings() {
       await logoutMutation.mutateAsync(undefined as unknown as void);
       await queryClient.invalidateQueries({ queryKey: getGetBaileysStatusQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
-      toast({ title: "تم قطع الاتصال — جاري عرض QR جديد..." });
+      toast({ title: t("settings_disconnected") });
     } catch (e: unknown) {
-      toast({ title: "فشل قطع الاتصال", description: (e as Error)?.message, variant: "destructive" });
+      toast({ title: t("settings_disconnect_fail"), description: (e as Error)?.message, variant: "destructive" });
     }
   }
 
@@ -139,7 +121,7 @@ export default function Settings() {
     e.preventDefault();
     if (!credForm.newUsername.trim() || !credForm.newPassword) return;
     if (credForm.newPassword !== credForm.confirmPassword) {
-      toast({ title: "كلمتا المرور غير متطابقتين", variant: "destructive" });
+      toast({ title: t("settings_mismatch"), variant: "destructive" });
       return;
     }
     setCredLoading(true);
@@ -152,13 +134,13 @@ export default function Settings() {
       });
       const data = (await res.json()) as { success?: boolean; message?: string; error?: string };
       if (!res.ok || data.error) {
-        toast({ title: "خطأ", description: data.error ?? "فشل تغيير البيانات", variant: "destructive" });
+        toast({ title: t("settings_error"), description: data.error ?? t("settings_credentials_fail"), variant: "destructive" });
         return;
       }
-      toast({ title: "✅ تم تغيير بيانات الدخول", description: "سجّل دخولك مجدداً بالبيانات الجديدة." });
+      toast({ title: t("settings_credentials_saved"), description: t("settings_credentials_saved_desc") });
       await queryClient.invalidateQueries({ queryKey: ["auth-user"] });
     } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+      toast({ title: t("settings_error"), variant: "destructive" });
     } finally {
       setCredLoading(false);
     }
@@ -167,6 +149,26 @@ export default function Settings() {
   const isConnected = baileysStatus?.connected ?? false;
   const qrCode = baileysStatus?.qr ?? null;
   const countdown = useQRCountdown(qrCode);
+
+  const githubSteps = [
+    {
+      n: 1,
+      title: t("settings_github_step1_title"),
+      desc: t("settings_github_step1_desc"),
+      link: "https://github.com/settings/tokens/new",
+      linkText: t("settings_github_step1_link"),
+    },
+    {
+      n: 2,
+      title: t("settings_github_step2_title"),
+      desc: t("settings_github_step2_desc"),
+    },
+    {
+      n: 3,
+      title: t("settings_github_step3_title"),
+      desc: t("settings_github_step3_desc"),
+    },
+  ];
 
   if (settingsLoading) {
     return (
@@ -177,12 +179,10 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl" dir="rtl">
+    <div className="space-y-8 max-w-2xl" dir={dir}>
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">الإعدادات</h1>
-        <p className="text-muted-foreground mt-1">
-          اربط WhatsApp عن طريق QR Code وأضف GitHub لحفظ قوائم الأرقام
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("settings_title")}</h1>
+        <p className="text-muted-foreground mt-1">{t("settings_subtitle")}</p>
       </div>
 
       {/* WhatsApp Section */}
@@ -190,14 +190,14 @@ export default function Settings() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Smartphone className="h-4 w-4" />
-            WhatsApp — ربط الجهاز
+            {t("settings_wa_section")}
             {isConnected ? (
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                <Wifi className="h-3 w-3" />متصل
+                <Wifi className="h-3 w-3" />{t("settings_connected")}
               </span>
             ) : (
               <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                <WifiOff className="h-3 w-3" />غير متصل
+                <WifiOff className="h-3 w-3" />{t("settings_not_connected")}
               </span>
             )}
           </CardTitle>
@@ -208,10 +208,8 @@ export default function Settings() {
               <div className="flex items-start gap-3 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
                 <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
                 <div>
-                  <p className="font-medium text-green-800 dark:text-green-300">WhatsApp متصل!</p>
-                  <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
-                    الجهاز جاهز لإرسال البرودكاست.
-                  </p>
+                  <p className="font-medium text-green-800 dark:text-green-300">{t("settings_wa_ready")}</p>
+                  <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">{t("settings_wa_ready_sub")}</p>
                 </div>
               </div>
               <Button
@@ -221,9 +219,9 @@ export default function Settings() {
                 className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
                 {logoutMutation.isPending
-                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  : <LogOut className="h-4 w-4 mr-2" />}
-                قطع الاتصال وحذف الجلسة
+                  ? <Loader2 className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"} animate-spin`} />
+                  : <LogOut className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"}`} />}
+                {t("settings_disconnect")}
               </Button>
             </div>
           ) : (
@@ -232,13 +230,13 @@ export default function Settings() {
               <div className="space-y-2">
                 <p className="text-sm font-medium flex items-center gap-1.5">
                   <QrCode className="h-4 w-4" />
-                  خطوات ربط WhatsApp بـ QR Code:
+                  {t("settings_qr_steps_title")}
                 </p>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   {[
-                    "افتح WhatsApp على تليفونك",
-                    "اضغط القائمة (⋮) ثم «الأجهزة المرتبطة»",
-                    "اضغط «ربط جهاز» ثم امسح الـ QR Code أدناه",
+                    t("settings_qr_step1"),
+                    t("settings_qr_step2"),
+                    t("settings_qr_step3"),
                   ].map((step, i) => (
                     <div key={i} className="flex gap-2 items-start">
                       <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold mt-0.5">
@@ -263,7 +261,7 @@ export default function Settings() {
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <RefreshCw className="h-3 w-3" />
-                          يتجدد تلقائياً
+                          {t("settings_qr_auto_refresh")}
                         </span>
                         <span
                           className={`tabular-nums font-bold ${
@@ -299,20 +297,18 @@ export default function Settings() {
                       ) : (
                         <div className="text-center space-y-2">
                           <QrCode className="h-10 w-10 mx-auto text-muted-foreground/30" />
-                          <p className="text-xs text-muted-foreground">في انتظار QR Code...</p>
+                          <p className="text-xs text-muted-foreground">{t("settings_qr_waiting")}</p>
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">جاري الاتصال بـ WhatsApp...</p>
+                    <p className="text-xs text-muted-foreground">{t("settings_qr_connecting")}</p>
                   </div>
                 )}
               </div>
 
               <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>
-                  <strong>ملاحظة:</strong> Baileys بيشغّل WhatsApp Web — مفيش حدود على الرسائل ومش محتاج Business API.
-                </span>
+                <span>{t("settings_baileys_note")}</span>
               </div>
             </div>
           )}
@@ -324,24 +320,24 @@ export default function Settings() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <KeyRound className="h-4 w-4" />
-            تغيير اسم المستخدم وكلمة المرور
+            {t("settings_credentials_section")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => void handleChangeCredentials(e)} className="space-y-4">
             <div>
-              <Label>اسم المستخدم الجديد</Label>
+              <Label>{t("settings_new_username")}</Label>
               <Input
                 dir="ltr"
                 value={credForm.newUsername}
                 onChange={(e) => setCredForm({ ...credForm, newUsername: e.target.value })}
-                placeholder="اكتب اسم المستخدم الجديد"
+                placeholder={t("settings_new_username_placeholder")}
                 className="mt-1.5"
                 disabled={credLoading}
               />
             </div>
             <div>
-              <Label>كلمة المرور الجديدة</Label>
+              <Label>{t("settings_new_password")}</Label>
               <Input
                 type="password"
                 dir="ltr"
@@ -353,7 +349,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <Label>تأكيد كلمة المرور</Label>
+              <Label>{t("settings_confirm_password")}</Label>
               <Input
                 type="password"
                 dir="ltr"
@@ -368,12 +364,12 @@ export default function Settings() {
               type="submit"
               disabled={credLoading || !credForm.newUsername.trim() || !credForm.newPassword || !credForm.confirmPassword}
             >
-              {credLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
-              حفظ بيانات الدخول
+              {credLoading
+                ? <Loader2 className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"} animate-spin`} />
+                : <KeyRound className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"}`} />}
+              {t("settings_save_credentials")}
             </Button>
-            <p className="text-xs text-muted-foreground">
-              بعد الحفظ ستُسجَّل خارجاً وتحتاج تدخل بالبيانات الجديدة.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("settings_credentials_hint")}</p>
           </form>
         </CardContent>
       </Card>
@@ -383,22 +379,20 @@ export default function Settings() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Github className="h-4 w-4" />
-            GitHub Gist — لحفظ قوائم الأرقام
+            {t("settings_github_section")}
             {settings?.hasGithubToken ? (
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">مضبوط</span>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{t("settings_github_configured")}</span>
             ) : (
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">اختياري</span>
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">{t("settings_github_optional")}</span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            بيخليك تحفظ قوائم أرقام العملاء على GitHub Gist وتحملها في أي وقت.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("settings_github_desc")}</p>
 
           <div className="space-y-4">
-            <p className="text-sm font-medium text-muted-foreground">خطوات الإعداد:</p>
-            {GITHUB_STEPS.map((step) => (
+            <p className="text-sm font-medium text-muted-foreground">{t("settings_github_steps_title")}</p>
+            {githubSteps.map((step) => (
               <div key={step.n} className="flex gap-3">
                 <div className="flex-shrink-0 w-6 h-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-bold">
                   {step.n}
@@ -424,37 +418,37 @@ export default function Settings() {
 
           <div className="space-y-3">
             <div>
-              <Label>GitHub Personal Access Token</Label>
+              <Label>{t("settings_github_token_label")}</Label>
               <Input
                 dir="ltr"
                 type="password"
                 value={githubForm.githubToken}
                 onChange={(e) => setGithubForm({ ...githubForm, githubToken: e.target.value })}
-                placeholder={settings?.hasGithubToken ? "••••••• (محفوظ)" : "ghp_xxxxxxxxxxxx"}
+                placeholder={settings?.hasGithubToken ? t("settings_github_token_placeholder_saved") : "ghp_xxxxxxxxxxxx"}
                 className="mt-1.5 font-mono text-sm"
               />
             </div>
 
             <div>
-              <Label>Gist ID (اختياري — للمزامنة مع Gist موجود)</Label>
+              <Label>{t("settings_gist_id_label")}</Label>
               <Input
                 dir="ltr"
                 value={githubForm.gistId}
                 onChange={(e) => setGithubForm({ ...githubForm, gistId: e.target.value })}
-                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                placeholder={t("settings_gist_id_placeholder")}
                 className="mt-1.5 font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                اتركه فاضي لإنشاء Gist جديد تلقائياً عند أول حفظ.
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">{t("settings_gist_id_hint")}</p>
             </div>
 
             <Button
               onClick={() => void handleSaveGitHub()}
               disabled={saveMutation.isPending}
             >
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Github className="h-4 w-4 mr-2" />}
-              حفظ بيانات GitHub
+              {saveMutation.isPending
+                ? <Loader2 className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"} animate-spin`} />
+                : <Github className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"}`} />}
+              {t("settings_save_github")}
             </Button>
           </div>
         </CardContent>

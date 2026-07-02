@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,10 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Eye, EyeOff, MessageCircle,
-  Lock, User, Moon, Sun, Radio, ShieldCheck,
+  Lock, User, Moon, Sun, Radio, ShieldCheck, Globe,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@workspace/api-client-react";
+import { useI18n } from "@/lib/i18n";
 
 const queryClient = new QueryClient();
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
@@ -112,9 +113,10 @@ function AuthShell({
   badge?: string;
 }) {
   const { isDark, toggle } = useTheme();
+  const { t, lang, setLang, dir } = useI18n();
 
   return (
-    <div className="min-h-screen flex bg-background" dir="rtl">
+    <div className="min-h-screen flex bg-background" dir={dir}>
 
       {/* ── Left panel (desktop) ── */}
       <div
@@ -141,12 +143,10 @@ function AuthShell({
           </div>
           <div className="space-y-3">
             <h1 className="text-4xl font-bold text-white leading-tight">WhatsApp<br />Broadcast</h1>
-            <p className="text-white/70 text-lg leading-relaxed">
-              أرسل رسائل جماعية لعملائك بكل سهولة وسرعة عبر WhatsApp
-            </p>
+            <p className="text-white/70 text-lg leading-relaxed">{t("auth_hero_subtitle")}</p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">
-            {["إرسال جماعي", "قوائم جهات الاتصال", "دعم الوسائط"].map((f) => (
+            {([t("auth_bulk_send"), t("auth_contact_lists"), t("auth_media_support")] as string[]).map((f) => (
               <span key={f} className="px-3 py-1 rounded-full text-sm text-white/80 font-medium"
                 style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}>
                 {f}
@@ -166,15 +166,25 @@ function AuthShell({
             <span className="text-sm font-bold text-foreground">WhatsApp Broadcast</span>
           </div>
           <div className="hidden lg:block" />
-          <button
-            onClick={toggle}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
-          >
-            {isDark
-              ? <><Sun className="h-3.5 w-3.5" /><span className="hidden sm:inline">فاتح</span></>
-              : <><Moon className="h-3.5 w-3.5" /><span className="hidden sm:inline">مظلم</span></>
-            }
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
+              title={t("lang_switch")}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("lang_switch")}</span>
+            </button>
+            <button
+              onClick={toggle}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
+            >
+              {isDark
+                ? <><Sun className="h-3.5 w-3.5" /><span className="hidden sm:inline">{t("nav_light_mode")}</span></>
+                : <><Moon className="h-3.5 w-3.5" /><span className="hidden sm:inline">{t("nav_dark_mode")}</span></>
+              }
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-8">
@@ -202,6 +212,7 @@ function AuthShell({
 function SetupForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -211,11 +222,11 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
     e.preventDefault();
     if (!username.trim() || !password || !confirm) return;
     if (password !== confirm) {
-      toast({ title: "خطأ", description: "كلمتا المرور غير متطابقتين", variant: "destructive" });
+      toast({ title: t("error"), description: t("auth_passwords_mismatch"), variant: "destructive" });
       return;
     }
     if (password.length < 6) {
-      toast({ title: "خطأ", description: "كلمة المرور 6 أحرف على الأقل", variant: "destructive" });
+      toast({ title: t("error"), description: t("auth_password_short"), variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -228,14 +239,14 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
       });
       const data = (await res.json()) as { user?: AuthUser; error?: string };
       if (!res.ok || data.error) {
-        toast({ title: "خطأ", description: data.error ?? "فشل إنشاء الحساب", variant: "destructive" });
+        toast({ title: t("error"), description: data.error ?? t("auth_fail_create"), variant: "destructive" });
         return;
       }
-      toast({ title: "✅ تم إنشاء الحساب", description: "مرحباً بك في WhatsApp Broadcast" });
+      toast({ title: t("auth_account_created"), description: t("auth_welcome") });
       await qc.invalidateQueries({ queryKey: ["setup-status"] });
       onSuccess();
     } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+      toast({ title: t("auth_connection_error"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -243,19 +254,18 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <AuthShell
-      title="إنشاء حسابك"
-      subtitle="المرة الأولى — اختر اسم المستخدم وكلمة المرور"
-      badge="إعداد أولي"
+      title={t("auth_setup_title")}
+      subtitle={t("auth_setup_subtitle")}
+      badge={t("auth_setup_badge")}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Info box */}
         <div className="flex gap-2.5 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary">
           <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>هذه البيانات ستُستخدم لتسجيل الدخول لاحقاً. احتفظ بها في مكان آمن.</span>
+          <span>{t("auth_setup_info")}</span>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="su-username" className="text-sm font-medium">اسم المستخدم</Label>
+          <Label htmlFor="su-username" className="text-sm font-medium">{t("auth_username")}</Label>
           <div className="relative">
             <Input
               id="su-username"
@@ -272,25 +282,13 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="su-password" className="text-sm font-medium">كلمة المرور</Label>
-          <PasswordInput
-            id="su-password"
-            value={password}
-            onChange={setPassword}
-            disabled={loading}
-            autoComplete="new-password"
-          />
+          <Label htmlFor="su-password" className="text-sm font-medium">{t("auth_password")}</Label>
+          <PasswordInput id="su-password" value={password} onChange={setPassword} disabled={loading} autoComplete="new-password" />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="su-confirm" className="text-sm font-medium">تأكيد كلمة المرور</Label>
-          <PasswordInput
-            id="su-confirm"
-            value={confirm}
-            onChange={setConfirm}
-            disabled={loading}
-            autoComplete="new-password"
-          />
+          <Label htmlFor="su-confirm" className="text-sm font-medium">{t("auth_confirm_password")}</Label>
+          <PasswordInput id="su-confirm" value={confirm} onChange={setConfirm} disabled={loading} autoComplete="new-password" />
         </div>
 
         <button
@@ -299,7 +297,7 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
           className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm mt-2"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading ? "جارٍ الإنشاء..." : "إنشاء الحساب والدخول"}
+          {loading ? t("auth_creating") : t("auth_create_account_btn")}
         </button>
       </form>
     </AuthShell>
@@ -311,6 +309,7 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
 // ---------------------------------------------------------------------------
 function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onForgotPassword: () => void }) {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -328,22 +327,22 @@ function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onF
       });
       const data = (await res.json()) as { user?: AuthUser; error?: string };
       if (!res.ok || data.error) {
-        toast({ title: "خطأ", description: data.error ?? "فشل تسجيل الدخول", variant: "destructive" });
+        toast({ title: t("auth_error"), description: data.error ?? t("auth_wrong_credentials"), variant: "destructive" });
         return;
       }
       onSuccess();
     } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+      toast({ title: t("auth_connection_error"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthShell title="تسجيل الدخول" subtitle="أدخل بياناتك للوصول إلى لوحة التحكم">
+    <AuthShell title={t("auth_login_title")} subtitle={t("auth_login_subtitle")}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="username" className="text-sm font-medium">اسم المستخدم</Label>
+          <Label htmlFor="username" className="text-sm font-medium">{t("auth_username")}</Label>
           <div className="relative">
             <Input
               id="username"
@@ -360,15 +359,9 @@ function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onF
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-sm font-medium">كلمة المرور</Label>
+          <Label htmlFor="password" className="text-sm font-medium">{t("auth_password")}</Label>
           <div className="relative">
-            <PasswordInput
-              id="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={setPassword}
-              disabled={loading}
-            />
+            <PasswordInput id="password" autoComplete="current-password" value={password} onChange={setPassword} disabled={loading} />
             <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         </div>
@@ -379,12 +372,12 @@ function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onF
           className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm mt-2"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading ? "جارٍ الدخول..." : "تسجيل الدخول"}
+          {loading ? t("auth_signing_in") : t("auth_login_btn")}
         </button>
 
         <div className="text-center pt-1">
           <button type="button" onClick={onForgotPassword} className="text-sm text-primary hover:underline">
-            نسيت كلمة المرور؟
+            {t("auth_forgot_password")}
           </button>
         </div>
       </form>
@@ -397,6 +390,7 @@ function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onF
 // ---------------------------------------------------------------------------
 function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBack: () => void }) {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [gistToken, setGistToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -407,11 +401,11 @@ function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBa
     e.preventDefault();
     if (!username.trim() || !gistToken.trim() || !newPassword || !confirmPassword) return;
     if (newPassword !== confirmPassword) {
-      toast({ title: "خطأ", description: "كلمتا المرور غير متطابقتين", variant: "destructive" });
+      toast({ title: t("error"), description: t("auth_passwords_mismatch"), variant: "destructive" });
       return;
     }
     if (newPassword.length < 6) {
-      toast({ title: "خطأ", description: "كلمة المرور 6 أحرف على الأقل", variant: "destructive" });
+      toast({ title: t("error"), description: t("auth_password_short"), variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -424,44 +418,42 @@ function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBa
       });
       const data = (await res.json()) as { success?: boolean; error?: string };
       if (!res.ok || data.error) {
-        toast({ title: "خطأ", description: data.error ?? "فشل إعادة تعيين كلمة المرور", variant: "destructive" });
+        toast({ title: t("error"), description: data.error ?? t("auth_reset_fail"), variant: "destructive" });
         return;
       }
-      toast({ title: "✅ تم", description: "تم إعادة تعيين كلمة المرور بنجاح" });
+      toast({ title: t("auth_reset_done"), description: t("auth_reset_success") });
       onSuccess();
     } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
+      toast({ title: t("auth_connection_error"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthShell title="استرداد كلمة المرور" subtitle="استخدم GitHub Token المسجّل لإعادة التعيين">
+    <AuthShell title={t("auth_forgot_title")} subtitle={t("auth_forgot_subtitle")}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="fp-username" className="text-sm font-medium">اسم المستخدم</Label>
+          <Label htmlFor="fp-username" className="text-sm font-medium">{t("auth_username")}</Label>
           <Input id="fp-username" dir="ltr" autoComplete="username" value={username}
             onChange={(e) => setUsername(e.target.value)} placeholder="admin" disabled={loading} className="h-11" />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="fp-gist-token" className="text-sm font-medium">GitHub Token</Label>
+          <Label htmlFor="fp-gist-token" className="text-sm font-medium">{t("auth_github_token")}</Label>
           <PasswordInput id="fp-gist-token" value={gistToken} onChange={setGistToken}
             placeholder="ghp_xxxxxxxxxxxx" disabled={loading} autoComplete="off" />
-          <p className="text-xs text-muted-foreground">نفس الـ Token المسجّل في صفحة الإعدادات</p>
+          <p className="text-xs text-muted-foreground">{t("auth_github_token_hint")}</p>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="fp-new-password" className="text-sm font-medium">كلمة المرور الجديدة</Label>
-          <PasswordInput id="fp-new-password" value={newPassword} onChange={setNewPassword}
-            disabled={loading} autoComplete="new-password" />
+          <Label htmlFor="fp-new-password" className="text-sm font-medium">{t("auth_new_password")}</Label>
+          <PasswordInput id="fp-new-password" value={newPassword} onChange={setNewPassword} disabled={loading} autoComplete="new-password" />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="fp-confirm-password" className="text-sm font-medium">تأكيد كلمة المرور</Label>
-          <PasswordInput id="fp-confirm-password" value={confirmPassword} onChange={setConfirmPassword}
-            disabled={loading} autoComplete="new-password" />
+          <Label htmlFor="fp-confirm-password" className="text-sm font-medium">{t("auth_confirm_password")}</Label>
+          <PasswordInput id="fp-confirm-password" value={confirmPassword} onChange={setConfirmPassword} disabled={loading} autoComplete="new-password" />
         </div>
 
         <button
@@ -470,13 +462,13 @@ function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBa
           className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          إعادة تعيين كلمة المرور
+          {t("auth_reset_btn")}
         </button>
 
         <div className="text-center">
           <button type="button" onClick={onBack}
             className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors">
-            ← العودة لتسجيل الدخول
+            {t("auth_back_to_login")}
           </button>
         </div>
       </form>
@@ -504,6 +496,8 @@ function LoginGate({ children }: { children: React.ReactNode }) {
   const { isLoading: authLoading, data: user } = useAuth();
   const { isLoading: setupLoading, data: setupStatus } = useSetupStatus();
   const qc = useQueryClient();
+  const { t } = useI18n();
+  const [, navigate] = useLocation();
   const [showForgot, setShowForgot] = useState(false);
 
   const loading = authLoading || setupLoading;
@@ -515,7 +509,7 @@ function LoginGate({ children }: { children: React.ReactNode }) {
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
-          <p className="text-sm text-muted-foreground">جارٍ التحميل…</p>
+          <p className="text-sm text-muted-foreground">{t("auth_loading")}</p>
         </div>
       </div>
     );
@@ -525,6 +519,7 @@ function LoginGate({ children }: { children: React.ReactNode }) {
 
   const handleSuccess = () => {
     setShowForgot(false);
+    navigate("/");
     void qc.invalidateQueries({ queryKey: ["auth-user"] });
     void qc.invalidateQueries({ queryKey: ["setup-status"] });
   };
