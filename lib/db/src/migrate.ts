@@ -99,17 +99,5 @@ export function runMigrations(sqlite: DatabaseSync): void {
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      expires_at INTEGER NOT NULL,
-      used_at INTEGER
-    );
   `);
-
-  // Additive migrations — safe to run on existing DBs
-  // SQLite does not support ALTER TABLE ADD COLUMN with UNIQUE — add plain column then create index separately
-  try { sqlite.exec("ALTER TABLE app_users ADD COLUMN email TEXT"); } catch { /* column already exists */ }
-  try { sqlite.exec("CREATE UNIQUE INDEX IF NOT EXISTS UDX_app_users_email ON app_users(email) WHERE email IS NOT NULL"); } catch { /* index already exists */ }
 }

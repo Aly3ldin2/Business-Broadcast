@@ -1,10 +1,9 @@
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { type Request, type Response } from "express";
-import { db, sessionsTable, appUsersTable, settingsTable, passwordResetTokensTable } from "@workspace/db";
+import { db, sessionsTable, appUsersTable, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
-import { sendPasswordResetEmail } from "./mailer";
 
 export const SESSION_COOKIE = "sid";
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -32,7 +31,6 @@ export async function hasAnyUser(): Promise<boolean> {
 export async function createFirstUser(
   username: string,
   password: string,
-  email?: string,
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   const already = await hasAnyUser();
   if (already) {
@@ -42,16 +40,15 @@ export async function createFirstUser(
     return { success: false, error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" };
   }
   const passwordHash = await bcrypt.hash(password, 10);
-  const normalizedEmail = email?.toLowerCase().trim() || undefined;
   const [row] = await db
     .insert(appUsersTable)
-    .values({ username, passwordHash, ...(normalizedEmail ? { email: normalizedEmail } : {}) })
+    .values({ username, passwordHash })
     .returning();
   return {
     success: true,
     user: {
       id: row.id,
-      email: row.email ?? null,
+      email: null,
       firstName: row.username,
       lastName: null,
       profileImageUrl: null,
@@ -109,77 +106,46 @@ export async function changeCredentials(
 }
 
 // ---------------------------------------------------------------------------
-// Email-based password reset
+// Forgot password — verified via GitHub Gist token
 // ---------------------------------------------------------------------------
-
-/** Step 1: request a reset OTP — sent to the user's registered email */
-export async function requestPasswordReset(
-  email: string,
-): Promise<{ success: boolean; error?: string }> {
-  const normalized = email.toLowerCase().trim();
+export async function resetPasswordWithGistToken(
+  username: string,
+  gistToken: string,
+  newPassword: string,
+): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   const [appUser] = await db
     .select()
     .from(appUsersTable)
-    .where(eq(appUsersTable.email, normalized))
+    .where(eq(appUsersTable.username, username))
     .limit(1);
 
-  // Don't reveal whether the email exists
-  if (!appUser) return { success: true };
+  if (!appUser) return { success: false, error: "اسم المستخدم غير موجود" };
 
-  // Invalidate any previous tokens for this user
-  await db
-    .delete(passwordResetTokensTable)
-    .where(eq(passwordResetTokensTable.userId, appUser.id));
-
-  // Generate a 6-digit OTP using a cryptographically secure source
-  const token = crypto.randomInt(100000, 999999).toString();
-
-  await db.insert(passwordResetTokensTable).values({
-    userId: appUser.id,
-    token,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-  });
-
-  return sendPasswordResetEmail(normalized, token);
-}
-
-/** Step 2: verify the OTP and set a new password */
-export async function verifyAndConsumeResetToken(
-  token: string,
-  newPassword: string,
-): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
-  const [resetRow] = await db
+  const [settings] = await db
     .select()
-    .from(passwordResetTokensTable)
-    .where(eq(passwordResetTokensTable.token, token.trim()))
+    .from(settingsTable)
+    .where(eq(settingsTable.userId, appUser.id))
     .limit(1);
 
-  if (!resetRow) return { success: false, error: "الكود غير صحيح" };
-  if (resetRow.expiresAt < new Date())
-    return { success: false, error: "انتهت صلاحية الكود — اطلب كوداً جديداً" };
-  if (resetRow.usedAt)
-    return { success: false, error: "تم استخدام هذا الكود مسبقاً" };
-  if (newPassword.length < 6)
-    return { success: false, error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" };
+  if (!settings?.githubToken) {
+    return { success: false, error: "لا يوجد GitHub Token مسجّل لهذا الحساب — لا يمكن استرداد كلمة المرور" };
+  }
+
+  if (settings.githubToken !== gistToken.trim()) {
+    return { success: false, error: "GitHub Token غير صحيح" };
+  }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-
   await db
-    .update(passwordResetTokensTable)
-    .set({ usedAt: new Date() })
-    .where(eq(passwordResetTokensTable.id, resetRow.id));
-
-  const [appUser] = await db
     .update(appUsersTable)
     .set({ passwordHash })
-    .where(eq(appUsersTable.id, resetRow.userId))
-    .returning();
+    .where(eq(appUsersTable.id, appUser.id));
 
   return {
     success: true,
     user: {
       id: appUser.id,
-      email: appUser.email ?? null,
+      email: null,
       firstName: appUser.username,
       lastName: null,
       profileImageUrl: null,

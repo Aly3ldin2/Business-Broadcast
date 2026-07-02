@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Eye, EyeOff, MessageCircle,
-  Lock, User, Moon, Sun, Radio, ShieldCheck, Mail, ArrowLeft,
+  Lock, User, Moon, Sun, Radio, ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@workspace/api-client-react";
@@ -203,7 +203,6 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -225,7 +224,7 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password, email: email.trim() || undefined }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
       const data = (await res.json()) as { user?: AuthUser; error?: string };
       if (!res.ok || data.error) {
@@ -269,26 +268,6 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
               className="h-11 pl-10"
             />
             <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="su-email" className="text-sm font-medium">
-            البريد الإلكتروني <span className="text-muted-foreground text-xs">(لاسترداد كلمة المرور)</span>
-          </Label>
-          <div className="relative">
-            <Input
-              id="su-email"
-              type="email"
-              dir="ltr"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              disabled={loading}
-              className="h-11 pl-10"
-            />
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         </div>
 
@@ -414,44 +393,19 @@ function LoginForm({ onSuccess, onForgotPassword }: { onSuccess: () => void; onF
 }
 
 // ---------------------------------------------------------------------------
-// Forgot Password Form — 2-step email OTP flow
+// Forgot Password Form
 // ---------------------------------------------------------------------------
 function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBack: () => void }) {
   const { toast } = useToast();
-  const [step, setStep] = useState<"email" | "otp">("email");
-  const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
+  const [username, setUsername] = useState("");
+  const [gistToken, setGistToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleRequestReset(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${BASE}/api/auth/request-reset`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const data = (await res.json()) as { success?: boolean; error?: string };
-      if (!res.ok || data.error) {
-        toast({ title: "خطأ", description: data.error ?? "فشل إرسال الكود", variant: "destructive" });
-        return;
-      }
-      toast({ title: "📧 تم الإرسال", description: "تحقق من بريدك الإلكتروني وأدخل الكود المُرسل" });
-      setStep("otp");
-    } catch {
-      toast({ title: "خطأ في الاتصال", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleResetPassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token.trim() || !newPassword || !confirmPassword) return;
+    if (!username.trim() || !gistToken.trim() || !newPassword || !confirmPassword) return;
     if (newPassword !== confirmPassword) {
       toast({ title: "خطأ", description: "كلمتا المرور غير متطابقتين", variant: "destructive" });
       return;
@@ -462,11 +416,11 @@ function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBa
     }
     setLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/auth/reset-password`, {
+      const res = await fetch(`${BASE}/api/auth/forgot-password`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim(), newPassword }),
+        body: JSON.stringify({ username: username.trim(), gistToken: gistToken.trim(), newPassword }),
       });
       const data = (await res.json()) as { success?: boolean; error?: string };
       if (!res.ok || data.error) {
@@ -482,65 +436,20 @@ function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBa
     }
   }
 
-  if (step === "email") {
-    return (
-      <AuthShell title="استرداد كلمة المرور" subtitle="أدخل بريدك الإلكتروني لاستلام كود التحقق">
-        <form onSubmit={handleRequestReset} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="fp-email" className="text-sm font-medium">البريد الإلكتروني</Label>
-            <div className="relative">
-              <Input
-                id="fp-email"
-                type="email"
-                dir="ltr"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                disabled={loading}
-                className="h-11 pl-10"
-              />
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || !email.trim()}
-            className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm"
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {loading ? "جارٍ الإرسال..." : "إرسال كود التحقق"}
-          </button>
-
-          <div className="text-center">
-            <button type="button" onClick={onBack}
-              className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors flex items-center gap-1 mx-auto">
-              <ArrowLeft className="h-3 w-3" /> العودة لتسجيل الدخول
-            </button>
-          </div>
-        </form>
-      </AuthShell>
-    );
-  }
-
   return (
-    <AuthShell title="أدخل الكود الجديد" subtitle={`تم إرسال كود مكون من 6 أرقام إلى ${email}`}>
-      <form onSubmit={handleResetPassword} className="space-y-4">
+    <AuthShell title="استرداد كلمة المرور" subtitle="استخدم GitHub Token المسجّل لإعادة التعيين">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="fp-token" className="text-sm font-medium">كود التحقق</Label>
-          <Input
-            id="fp-token"
-            dir="ltr"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            maxLength={6}
-            value={token}
-            onChange={(e) => setToken(e.target.value.replace(/\D/g, ""))}
-            placeholder="123456"
-            disabled={loading}
-            className="h-11 text-center text-xl tracking-widest font-mono"
-          />
+          <Label htmlFor="fp-username" className="text-sm font-medium">اسم المستخدم</Label>
+          <Input id="fp-username" dir="ltr" autoComplete="username" value={username}
+            onChange={(e) => setUsername(e.target.value)} placeholder="admin" disabled={loading} className="h-11" />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="fp-gist-token" className="text-sm font-medium">GitHub Token</Label>
+          <PasswordInput id="fp-gist-token" value={gistToken} onChange={setGistToken}
+            placeholder="ghp_xxxxxxxxxxxx" disabled={loading} autoComplete="off" />
+          <p className="text-xs text-muted-foreground">نفس الـ Token المسجّل في صفحة الإعدادات</p>
         </div>
 
         <div className="space-y-1.5">
@@ -557,21 +466,17 @@ function ForgotPasswordForm({ onSuccess, onBack }: { onSuccess: () => void; onBa
 
         <button
           type="submit"
-          disabled={loading || token.length !== 6 || !newPassword || !confirmPassword}
+          disabled={loading || !username.trim() || !gistToken.trim() || !newPassword || !confirmPassword}
           className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-sm"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          تأكيد إعادة التعيين
+          إعادة تعيين كلمة المرور
         </button>
 
-        <div className="text-center space-y-2">
-          <button type="button" onClick={() => setStep("email")}
-            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors block mx-auto">
-            لم يصلك الكود؟ أعد الإرسال
-          </button>
+        <div className="text-center">
           <button type="button" onClick={onBack}
-            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors flex items-center gap-1 mx-auto">
-            <ArrowLeft className="h-3 w-3" /> العودة لتسجيل الدخول
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors">
+            ← العودة لتسجيل الدخول
           </button>
         </div>
       </form>
