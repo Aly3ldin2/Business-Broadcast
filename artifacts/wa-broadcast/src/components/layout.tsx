@@ -121,7 +121,7 @@ export function Layout({ children }: LayoutProps) {
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <item.icon className={`${dir === "rtl" ? "ml-3" : "mr-3"} h-4 w-4 shrink-0`} />
+              <item.icon className="mr-3 h-4 w-4 shrink-0" />
               {t(item.nameKey)}
             </div>
           </Link>
@@ -131,7 +131,7 @@ export function Layout({ children }: LayoutProps) {
   );
 
   return (
-    <div className="min-h-screen bg-background" dir={dir}>
+    <div className="min-h-screen bg-background" dir="ltr">
       <div className="flex h-screen overflow-hidden">
         {/* Mobile top bar */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b flex items-center px-4 gap-3">
@@ -141,7 +141,7 @@ export function Layout({ children }: LayoutProps) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side={dir === "rtl" ? "right" : "left"} className="w-52 p-0">
+            <SheetContent side="left" className="w-52 p-0">
               <div className="flex h-14 shrink-0 items-center px-4 border-b">
                 <SiteLogo />
               </div>
@@ -179,7 +179,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden" dir={dir}>
           <main className="flex-1 overflow-y-auto p-4 pt-16 md:pt-6 md:p-8">
             <div className="mx-auto max-w-3xl">{children}</div>
           </main>
