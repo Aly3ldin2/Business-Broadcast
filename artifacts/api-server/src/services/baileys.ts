@@ -259,6 +259,7 @@ export class BaileysService {
       mimetype: "video/mp4",
       gifPlayback: false,
       ptv: false,
+      fileLength: BigInt(buffer.byteLength),
       ...(caption ? { caption } : {}),
     });
   }

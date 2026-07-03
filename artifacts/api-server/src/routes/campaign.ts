@@ -40,6 +40,12 @@ router.post("/send", async (req, res) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 
+  // Heartbeat: send a keep-alive comment every 15 s so the SSE connection
+  // stays open during long video uploads (large files can take 30-90 s).
+  const heartbeat = setInterval(() => {
+    res.write(": keepalive\n\n");
+  }, 15_000);
+
   const { phones, message, mediaItems } = parsed.data;
   const textContent = message?.trim() || undefined;
   const results: { phone: string; success: boolean; error?: string | null }[] = [];
@@ -125,6 +131,7 @@ router.post("/send", async (req, res) => {
     }
   }
 
+  clearInterval(heartbeat);
   sendEvent({ type: "complete", sent, failed, total, results });
   res.end();
 });
