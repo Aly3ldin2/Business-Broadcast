@@ -147,17 +147,17 @@ function ContactFooter() {
         <p className="text-base font-semibold text-muted-foreground tracking-wide">
           تواصل معي
         </p>
-        <div className="flex items-center gap-4 flex-wrap justify-center">
+        <div className="flex items-center gap-3 justify-center">
           {links.map(({ label, href, icon: Icon }) => (
             <a
               key={label}
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-white font-medium text-sm shadow-md transition-all duration-200 active:scale-95 hover:shadow-lg ${colorMap[label]}`}
+              title={label}
+              className={`flex items-center justify-center w-12 h-12 rounded-2xl text-white shadow-md transition-all duration-200 active:scale-95 hover:scale-110 hover:shadow-lg ${colorMap[label]}`}
             >
-              <Icon className="h-5 w-5 shrink-0" />
-              {label}
+              <Icon className="h-6 w-6" />
             </a>
           ))}
         </div>
