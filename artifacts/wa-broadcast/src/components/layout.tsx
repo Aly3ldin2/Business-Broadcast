@@ -142,12 +142,11 @@ function ContactFooter() {
               title={label}
               className={`flex items-center gap-1.5 text-muted-foreground transition-colors ${color} group`}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-7 w-7" />
               <span className="text-xs hidden sm:inline">{label}</span>
             </a>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground/60">Ali Sayed Soliman</p>
       </div>
     </footer>
   );
