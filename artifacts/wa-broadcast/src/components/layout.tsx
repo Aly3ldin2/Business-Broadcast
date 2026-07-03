@@ -134,24 +134,30 @@ function ContactFooter() {
     },
   ];
 
+  const colorMap: Record<string, string> = {
+    LinkedIn: "bg-[#0077B5] hover:bg-[#005f93]",
+    GitHub:   "bg-[#24292e] hover:bg-[#111]",
+    WhatsApp: "bg-[#25D366] hover:bg-[#1ebe57]",
+    Facebook: "bg-[#1877F2] hover:bg-[#0f60d0]",
+  };
+
   return (
-    <footer className="mt-16 border-t-2 pt-14 pb-12" dir={dir}>
-      <div className="flex flex-col items-center gap-8">
-        <p className="text-xl text-muted-foreground font-bold tracking-widest uppercase">
-          تواصل معنا
+    <footer className="mt-12 pt-8 pb-6 border-t" dir={dir}>
+      <div className="flex flex-col items-center gap-6">
+        <p className="text-base font-semibold text-muted-foreground tracking-wide">
+          تواصل معي
         </p>
-        <div className="flex items-center gap-12">
-          {links.map(({ label, href, icon: Icon, color }) => (
+        <div className="flex items-center gap-4 flex-wrap justify-center">
+          {links.map(({ label, href, icon: Icon }) => (
             <a
               key={label}
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              title={label}
-              className={`flex flex-col items-center gap-2 text-muted-foreground transition-colors ${color} group`}
+              className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-white font-medium text-sm shadow-md transition-all duration-200 active:scale-95 hover:shadow-lg ${colorMap[label]}`}
             >
-              <Icon className="h-7 w-7" />
-              <span className="text-sm font-medium">{label}</span>
+              <Icon className="h-5 w-5 shrink-0" />
+              {label}
             </a>
           ))}
         </div>
