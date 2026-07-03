@@ -258,6 +258,10 @@ const T: Record<string, { ar: string; en: string }> = {
   edit: { ar: "تعديل", en: "Edit" },
   delete_confirm: { ar: "حذف", en: "Delete" },
 
+  // Country picker
+  country_search: { ar: "ابحث عن دولة...", en: "Search country..." },
+  country_no_results: { ar: "لا توجد نتائج", en: "No results" },
+
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

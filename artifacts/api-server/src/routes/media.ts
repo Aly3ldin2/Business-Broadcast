@@ -19,13 +19,13 @@ const upload = multer({
   limits: { fileSize: 300 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_TYPES.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("نوع الملف غير مدعوم — مدعوم: صور JPG/PNG/WebP وفيديو MP4 فقط"));
+    else cb(new Error("Unsupported file type — allowed: JPG/PNG/WebP images and MP4 video"));
   },
 });
 
 router.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: "لم يتم إرسال ملف" });
+    return res.status(400).json({ error: "No file uploaded" });
   }
 
   const id = randomUUID();

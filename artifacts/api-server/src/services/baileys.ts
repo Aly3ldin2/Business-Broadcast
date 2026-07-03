@@ -172,15 +172,15 @@ export class BaileysService {
    */
   async requestPairingCode(phone: string): Promise<string> {
     if (this._connected) {
-      throw new Error("متصل بالفعل — افصل الجلسة أولاً ثم حاول مجدداً");
+      throw new Error("Already connected — disconnect the session first");
     }
     const cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length < 7) {
-      throw new Error("رقم الهاتف غير صالح — أدخل الرقم مع كود الدولة بدون +");
+      throw new Error("Invalid phone number — enter with country code, no +");
     }
 
     // Cancel any previously pending pairing
-    this._rejectPendingPairing(new Error("طلب جديد — إلغاء الطلب السابق"));
+    this._rejectPendingPairing(new Error("New request — cancelling previous"));
 
     // If socket is ready right now, try immediately
     if (this.sock && this._socketReady) {
@@ -204,7 +204,7 @@ export class BaileysService {
         if (this._pendingPairing?.phone === cleanPhone) {
           this._pendingPairing = null;
         }
-        reject(new Error("انتهت مهلة الانتظار (45 ثانية) — حاول مرة أخرى"));
+        reject(new Error("Timeout (45s) — please try again"));
       }, 45_000);
 
       this._pendingPairing = { phone: cleanPhone, resolve, reject, timer };
@@ -219,7 +219,7 @@ export class BaileysService {
 
   async sendText(phone: string, text: string) {
     if (!this.sock || !this._connected) {
-      throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
+      throw new Error("WhatsApp not connected — open Settings and scan QR Code");
     }
     const jid = `${phone}@s.whatsapp.net`;
     await this.sock.sendMessage(jid, { text });
@@ -227,7 +227,7 @@ export class BaileysService {
 
   async sendImage(phone: string, buffer: Buffer, mimetype: string, caption?: string) {
     if (!this.sock || !this._connected) {
-      throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
+      throw new Error("WhatsApp not connected — open Settings and scan QR Code");
     }
     const jid = `${phone}@s.whatsapp.net`;
     await this.sock.sendMessage(jid, {
@@ -240,7 +240,7 @@ export class BaileysService {
 
   async sendVideo(phone: string, buffer: Buffer, _mimetype: string, caption?: string) {
     if (!this.sock || !this._connected) {
-      throw new Error("WhatsApp غير متصل — افتح الإعدادات وامسح QR Code");
+      throw new Error("WhatsApp not connected — open Settings and scan QR Code");
     }
     const jid = `${phone}@s.whatsapp.net`;
     // Always send as video/mp4 — WhatsApp only plays H.264/MP4 videos natively

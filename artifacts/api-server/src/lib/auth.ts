@@ -34,10 +34,10 @@ export async function createFirstUser(
 ): Promise<{ success: boolean; user?: AuthUser; error?: string }> {
   const already = await hasAnyUser();
   if (already) {
-    return { success: false, error: "الحساب موجود بالفعل — سجّل دخولك" };
+    return { success: false, error: "Account already exists — please sign in" };
   }
   if (password.length < 6) {
-    return { success: false, error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" };
+    return { success: false, error: "Password must be at least 6 characters" };
   }
   const passwordHash = await bcrypt.hash(password, 10);
   const [row] = await db
@@ -89,11 +89,11 @@ export async function changeCredentials(
   newPassword: string,
 ): Promise<{ success: boolean; error?: string }> {
   const [existing] = await db.select().from(appUsersTable).where(eq(appUsersTable.id, userId)).limit(1);
-  if (!existing) return { success: false, error: "المستخدم غير موجود" };
+  if (!existing) return { success: false, error: "User not found" };
 
   if (newUsername !== existing.username) {
     const [taken] = await db.select().from(appUsersTable).where(eq(appUsersTable.username, newUsername)).limit(1);
-    if (taken) return { success: false, error: "اسم المستخدم مستخدم بالفعل" };
+    if (taken) return { success: false, error: "Username already taken" };
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -119,7 +119,7 @@ export async function resetPasswordWithGistToken(
     .where(eq(appUsersTable.username, username))
     .limit(1);
 
-  if (!appUser) return { success: false, error: "اسم المستخدم غير موجود" };
+  if (!appUser) return { success: false, error: "Username not found" };
 
   const [settings] = await db
     .select()
@@ -128,11 +128,11 @@ export async function resetPasswordWithGistToken(
     .limit(1);
 
   if (!settings?.githubToken) {
-    return { success: false, error: "لا يوجد GitHub Token مسجّل لهذا الحساب — لا يمكن استرداد كلمة المرور" };
+    return { success: false, error: "No GitHub Token registered for this account — cannot recover password" };
   }
 
   if (settings.githubToken !== gistToken.trim()) {
-    return { success: false, error: "GitHub Token غير صحيح" };
+    return { success: false, error: "GitHub Token is incorrect" };
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);

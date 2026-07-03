@@ -9,6 +9,9 @@ const port = rawPort ? Number(rawPort) : 5173;
 
 const basePath = process.env.BASE_PATH ?? "/";
 
+// API server port — forwarded by the dev proxy
+const API_PORT = process.env.API_PORT ? Number(process.env.API_PORT) : 8080;
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -48,6 +51,13 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+    },
+    proxy: {
+      "/api": {
+        target: `http://localhost:${API_PORT}`,
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   preview: {

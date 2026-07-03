@@ -23,7 +23,7 @@ router.post("/send", async (req, res) => {
   const status = svc.getStatus();
   if (!status.connected) {
     return res.status(400).json({
-      error: "WhatsApp غير متصل. افتح الإعدادات وامسح QR Code أولاً.",
+      error: "WhatsApp not connected. Open Settings and scan the QR Code first.",
     });
   }
 
@@ -36,7 +36,7 @@ router.post("/send", async (req, res) => {
   for (const rawPhone of phones) {
     const phone = rawPhone.replace(/[\s+\-()]/g, "");
     if (!phone || phone.length < 10) {
-      results.push({ phone: rawPhone, success: false, error: "رقم هاتف غير صالح" });
+      results.push({ phone: rawPhone, success: false, error: "Invalid phone number" });
       failed++;
       continue;
     }
@@ -84,7 +84,7 @@ router.post("/send", async (req, res) => {
       results.push({ phone, success: true, error: null });
       sent++;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "فشل الإرسال";
+      const msg = e instanceof Error ? e.message : "Send failed";
       logger.error({ phone, err: e }, `campaign send failed: ${msg}`);
       results.push({ phone, success: false, error: msg });
       failed++;

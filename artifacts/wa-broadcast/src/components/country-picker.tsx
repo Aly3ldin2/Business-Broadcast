@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { COUNTRIES, countryFlag, findCountry, type Country } from "@/data/countries";
+import { useI18n } from "@/lib/i18n";
 
 interface CountryPickerProps {
   value: string;
@@ -11,6 +12,7 @@ interface CountryPickerProps {
 export function CountryPicker({ value, onChange }: CountryPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const { t } = useI18n();
 
   const selected = findCountry(value);
 
@@ -47,7 +49,7 @@ export function CountryPicker({ value, onChange }: CountryPickerProps) {
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث عن دولة..."
+            placeholder={t("country_search")}
             className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
           />
         </div>
@@ -55,7 +57,7 @@ export function CountryPicker({ value, onChange }: CountryPickerProps) {
         {/* List */}
         <div className="max-h-60 overflow-y-auto py-1">
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">لا توجد نتائج</p>
+            <p className="text-sm text-muted-foreground text-center py-6">{t("country_no_results")}</p>
           ) : (
             filtered.map((country) => (
               <button

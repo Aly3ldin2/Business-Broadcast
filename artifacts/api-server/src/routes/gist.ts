@@ -45,7 +45,7 @@ router.get("/phones", async (req, res) => {
   const userId = getUserId(req);
   const settings = await getSettings(userId);
   if (!settings?.githubToken) {
-    return res.status(400).json({ error: "GitHub token غير مضبوط. أضفه في الإعدادات." });
+    return res.status(400).json({ error: "GitHub token not configured. Add it in Settings." });
   }
 
   if (!settings.gistId) {
@@ -62,7 +62,7 @@ router.get("/phones", async (req, res) => {
     });
 
     if (!response.ok) {
-      return res.status(400).json({ error: "فشل تحميل Gist. تحقق من GitHub token وGist ID." });
+      return res.status(400).json({ error: "Failed to load Gist. Check your GitHub token and Gist ID." });
     }
 
     const gist = await response.json() as {
@@ -77,7 +77,7 @@ router.get("/phones", async (req, res) => {
     const raw = JSON.parse(fileContent);
     return res.json(normalizeGistData(raw));
   } catch {
-    return res.status(500).json({ error: "فشل تحليل بيانات Gist." });
+    return res.status(500).json({ error: "Failed to parse Gist data." });
   }
 });
 
@@ -90,7 +90,7 @@ router.post("/phones", async (req, res) => {
 
   const settings = await getSettings(userId);
   if (!settings?.githubToken) {
-    return res.status(400).json({ error: "GitHub token غير مضبوط. أضفه في الإعدادات." });
+    return res.status(400).json({ error: "GitHub token not configured. Add it in Settings." });
   }
 
   const content = JSON.stringify(parsed.data, null, 2);
@@ -111,7 +111,7 @@ router.post("/phones", async (req, res) => {
 
       if (!response.ok) {
         const err = await response.json() as { message?: string };
-        return res.status(400).json({ error: err.message ?? "فشل تحديث Gist." });
+        return res.status(400).json({ error: err.message ?? "Failed to update Gist." });
       }
 
       const gist = await response.json() as { id: string; html_url: string };
@@ -134,7 +134,7 @@ router.post("/phones", async (req, res) => {
 
       if (!response.ok) {
         const err = await response.json() as { message?: string };
-        return res.status(400).json({ error: err.message ?? "فشل إنشاء Gist." });
+        return res.status(400).json({ error: err.message ?? "Failed to create Gist." });
       }
 
       const gist = await response.json() as { id: string; html_url: string };
@@ -148,7 +148,7 @@ router.post("/phones", async (req, res) => {
       return res.json({ success: true, gistId: gist.id, gistUrl: gist.html_url });
     }
   } catch {
-    return res.status(500).json({ error: "خطأ في الشبكة عند الاتصال بـ GitHub." });
+    return res.status(500).json({ error: "Network error connecting to GitHub." });
   }
 });
 

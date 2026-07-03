@@ -29,13 +29,13 @@ router.post("/auth/setup", async (req: Request, res: Response) => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || !password) {
-    res.status(400).json({ error: "اسم المستخدم وكلمة المرور مطلوبان" });
+    res.status(400).json({ error: "Username and password are required" });
     return;
   }
 
   const result = await createFirstUser(username.trim(), password);
   if (!result.success || !result.user) {
-    res.status(400).json({ error: result.error ?? "فشل إنشاء الحساب" });
+    res.status(400).json({ error: result.error ?? "Failed to create account" });
     return;
   }
 
@@ -55,14 +55,14 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || !password) {
-    res.status(400).json({ error: "اسم المستخدم وكلمة المرور مطلوبان" });
+    res.status(400).json({ error: "Username and password are required" });
     return;
   }
 
   const result = await checkCredentials(username.trim(), password);
 
   if (result.status === "not_found" || result.status === "invalid") {
-    res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" });
+    res.status(401).json({ error: "Incorrect username or password" });
     return;
   }
 
@@ -86,13 +86,13 @@ router.post("/auth/logout", async (req: Request, res: Response) => {
 
 router.post("/auth/change-credentials", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "غير مسموح" });
+    res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
   const { newUsername, newPassword } = req.body as { newUsername?: string; newPassword?: string };
   if (!newUsername || !newPassword) {
-    res.status(400).json({ error: "اسم المستخدم وكلمة المرور الجديدة مطلوبان" });
+    res.status(400).json({ error: "New username and password are required" });
     return;
   }
 
@@ -105,7 +105,7 @@ router.post("/auth/change-credentials", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
   await clearSession(res, sid);
 
-  res.json({ success: true, message: "تم تغيير بيانات الدخول. سجّل دخولك مجدداً." });
+  res.json({ success: true, message: "Credentials updated. Please sign in again." });
 });
 
 // Forgot password — verified via GitHub Gist token
@@ -117,19 +117,19 @@ router.post("/auth/forgot-password", async (req: Request, res: Response) => {
   };
 
   if (!username || !gistToken || !newPassword) {
-    res.status(400).json({ error: "جميع الحقول مطلوبة" });
+    res.status(400).json({ error: "All fields are required" });
     return;
   }
 
   if (newPassword.length < 6) {
-    res.status(400).json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+    res.status(400).json({ error: "Password must be at least 6 characters" });
     return;
   }
 
   const result = await resetPasswordWithGistToken(username.trim(), gistToken.trim(), newPassword);
 
   if (!result.success || !result.user) {
-    res.status(400).json({ error: result.error ?? "فشل إعادة تعيين كلمة المرور" });
+    res.status(400).json({ error: result.error ?? "Failed to reset password" });
     return;
   }
 
