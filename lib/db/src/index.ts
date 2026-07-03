@@ -22,11 +22,12 @@ export const db = drizzle(
   async (sql, params, method) => {
     try {
       const stmt = sqlite.prepare(sql);
+      const boundParams = params as (string | number | bigint | null)[];
       if (method === "run") {
-        stmt.run(...(params as unknown[]));
+        stmt.run(...boundParams);
         return { rows: [] };
       }
-      const rows = (stmt.all(...(params as unknown[])) as Record<string, unknown>[]).map(
+      const rows = (stmt.all(...boundParams) as Record<string, unknown>[]).map(
         (row) => Object.values(row),
       );
       return { rows };

@@ -59,6 +59,10 @@ export class BaileysService {
         connectTimeoutMs: 60_000,
         // Keep the WebSocket alive with periodic pings to prevent idle disconnects
         keepAliveIntervalMs: 25_000,
+        // Baileys defaults to a 60s lifetime for the FIRST QR but only 20s for subsequent
+        // auto-refreshed ones. Force every QR (first and subsequent) to live 60s so it
+        // always matches the 60s countdown shown in the UI.
+        qrTimeout: 60_000,
       });
 
       this.sock = sock;
@@ -233,7 +237,6 @@ export class BaileysService {
     await this.sock.sendMessage(jid, {
       image: buffer,
       mimetype,
-      fileLength: buffer.length,
       ...(caption ? { caption } : {}),
     });
   }
@@ -247,7 +250,6 @@ export class BaileysService {
     await this.sock.sendMessage(jid, {
       video: buffer,
       mimetype: "video/mp4",
-      fileLength: buffer.length,
       gifPlayback: false,
       ptv: false,
       ...(caption ? { caption } : {}),
@@ -270,8 +272,9 @@ export class BaileysService {
     }
 
     if (sock) {
-      sock.ev.removeAllListeners();
-      try { await sock.logout(); } catch { /* ignore */ }
+      sock.ev.removeAllListeners("connection.update");
+      sock.ev.removeAllListeners("creds.update");
+      try { await sock.logout(""); } catch { /* ignore */ }
     }
 
     await rm(this.authDir, { recursive: true, force: true });
