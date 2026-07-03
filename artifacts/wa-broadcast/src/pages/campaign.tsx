@@ -570,7 +570,7 @@ export default function Campaign() {
     setSendProgress(null);
 
     try {
-      const response = await fetch(`${BASE}/api/send`, {
+      const response = await fetch(`${BASE}/api/campaign/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
