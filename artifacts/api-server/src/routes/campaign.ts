@@ -79,16 +79,25 @@ router.post("/send", async (req, res) => {
             if (stored) { buf = stored.buffer; mime = stored.mimetype; }
           } else if (item.url) {
             const resp = await fetch(item.url);
+            if (!resp.ok) {
+              throw new Error(`Failed to download media from URL (status ${resp.status})`);
+            }
             buf = Buffer.from(await resp.arrayBuffer());
             mime = resp.headers.get("content-type") ?? "image/jpeg";
           }
 
-          if (buf) {
-            if (item.type === "image") {
-              await svc.sendImage(phone, buf, mime);
-            } else if (item.type === "video") {
-              await svc.sendVideo(phone, buf, mime);
-            }
+          if (!buf) {
+            throw new Error(
+              item.id
+                ? "Media file expired or not found — please re-upload and try again"
+                : "Missing media source (no id or url)",
+            );
+          }
+
+          if (item.type === "image") {
+            await svc.sendImage(phone, buf, mime);
+          } else if (item.type === "video") {
+            await svc.sendVideo(phone, buf, mime);
           }
         }
 

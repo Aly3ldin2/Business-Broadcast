@@ -95,7 +95,14 @@ export class BaileysService {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
           if (!isLoggedOut) {
-            this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
+            // restartRequired fires as a routine part of WA's handshake right after
+            // pairing/login — reconnect immediately so `connected` doesn't sit false
+            // for several seconds and make an in-flight send look "disconnected".
+            const isRestartRequired = statusCode === DisconnectReason.restartRequired;
+            this._reconnectTimer = setTimeout(
+              () => void this.initialize(),
+              isRestartRequired ? 250 : 5_000,
+            );
           } else {
             // Logged out — reject any pending pairing
             this._rejectPendingPairing(new Error("تم تسجيل الخروج — أعد تشغيل الاتصال"));
