@@ -135,12 +135,12 @@ function ContactFooter() {
   ];
 
   return (
-    <footer className="mt-10 border-t pt-6 pb-4" dir={dir}>
-      <div className="flex flex-col items-center gap-3">
-        <p className="text-xs text-muted-foreground font-medium tracking-wide uppercase">
+    <footer className="mt-14 border-t pt-10 pb-8" dir={dir}>
+      <div className="flex flex-col items-center gap-5">
+        <p className="text-sm text-muted-foreground font-semibold tracking-widest uppercase">
           تواصل معنا
         </p>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-8">
           {links.map(({ label, href, icon: Icon, color }) => (
             <a
               key={label}
@@ -148,10 +148,10 @@ function ContactFooter() {
               target="_blank"
               rel="noopener noreferrer"
               title={label}
-              className={`flex items-center gap-1.5 text-muted-foreground transition-colors ${color} group`}
+              className={`flex flex-col items-center gap-2 text-muted-foreground transition-colors ${color} group`}
             >
-              <Icon className="h-7 w-7" />
-              <span className="text-xs hidden sm:inline">{label}</span>
+              <Icon className="h-10 w-10" />
+              <span className="text-sm font-medium">{label}</span>
             </a>
           ))}
         </div>
