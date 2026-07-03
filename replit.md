@@ -4,14 +4,17 @@ A free, self-hosted broadcast system for WhatsApp Business API — lets business
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm --filter @workspace/wa-broadcast run dev` — run the frontend
+- **API Server** runs on port 8080 via the `artifacts/api-server: API Server` workflow
+- **Frontend** runs on port 26033 via the `artifacts/wa-broadcast: web` workflow
+- `pnpm --filter @workspace/api-server run dev` — run the API server manually
+- `pnpm --filter @workspace/wa-broadcast run dev` — run the frontend manually
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Optional env: `DATABASE_PATH` — SQLite file path (defaults to `app.db` in the project root)
 - Optional env: `BAILEYS_AUTH_PATH` — Baileys session directory (defaults to `.baileys_auth/`)
+- Optional env: `ALLOWED_ORIGIN` — restrict CORS to a specific origin in production
 - Required env: `PORT` — injected automatically by Replit workflows
 - Email (forgot password): `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` — all required to enable email password reset
 
@@ -20,7 +23,7 @@ A free, self-hosted broadcast system for WhatsApp Business API — lets business
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - Frontend: React + Vite (artifacts/wa-broadcast)
 - API: Express 5 (artifacts/api-server)
-- DB: PostgreSQL + Drizzle ORM
+- DB: SQLite (Node.js built-in `DatabaseSync`) + Drizzle ORM — no external DB needed
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
