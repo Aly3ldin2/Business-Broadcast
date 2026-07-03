@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Radio, Moon, Sun, LogOut, Globe } from "lucide-react";
+import { Send, Settings, Users, Menu, Radio, Moon, Sun, LogOut, Globe, Linkedin, Github, MessageCircle, Facebook } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
@@ -97,6 +97,62 @@ function LogoutButton() {
   );
 }
 
+function ContactFooter() {
+  const { dir } = useI18n();
+  const links = [
+    {
+      label: "LinkedIn",
+      href: "https://www.linkedin.com/in/ali-sayed-soliman",
+      icon: Linkedin,
+      color: "hover:text-[#0077B5]",
+    },
+    {
+      label: "GitHub",
+      href: "https://github.com/Aly3ldin",
+      icon: Github,
+      color: "hover:text-foreground",
+    },
+    {
+      label: "WhatsApp",
+      href: "https://wa.me/201068716030",
+      icon: MessageCircle,
+      color: "hover:text-[#25D366]",
+    },
+    {
+      label: "Facebook",
+      href: "https://www.facebook.com/share/18kKGZAe1a/",
+      icon: Facebook,
+      color: "hover:text-[#1877F2]",
+    },
+  ];
+
+  return (
+    <footer className="mt-10 border-t pt-6 pb-4" dir={dir}>
+      <div className="flex flex-col items-center gap-3">
+        <p className="text-xs text-muted-foreground font-medium tracking-wide uppercase">
+          تواصل معنا
+        </p>
+        <div className="flex items-center gap-4">
+          {links.map(({ label, href, icon: Icon, color }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={label}
+              className={`flex items-center gap-1.5 text-muted-foreground transition-colors ${color} group`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-xs hidden sm:inline">{label}</span>
+            </a>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground/60">Ali Sayed Soliman</p>
+      </div>
+    </footer>
+  );
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { isDark, toggle } = useTheme();
@@ -181,7 +237,10 @@ export function Layout({ children }: LayoutProps) {
         {/* Main content */}
         <div className="flex flex-1 flex-col overflow-hidden" dir={dir}>
           <main className="flex-1 overflow-y-auto p-4 pt-16 md:pt-6 md:p-8">
-            <div className="mx-auto max-w-3xl">{children}</div>
+            <div className="mx-auto max-w-3xl">
+              {children}
+              <ContactFooter />
+            </div>
           </main>
         </div>
       </div>
