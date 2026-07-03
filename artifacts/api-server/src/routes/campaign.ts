@@ -15,38 +15,58 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 router.post("/send", async (req, res) => {
   const parsed = SendCampaignBody.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid body" });
+    res.status(400).json({ error: "Invalid body" });
+    return;
   }
 
   const userId = getUserId(req);
   const svc = baileysServiceManager.get(userId);
   const status = svc.getStatus();
   if (!status.connected) {
-    return res.status(400).json({
+    res.status(400).json({
       error: "WhatsApp not connected. Open Settings and scan the QR Code first.",
     });
+    return;
+  }
+
+  // ── Set up SSE stream ───────────────────────────────────────────
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  function sendEvent(data: Record<string, unknown>) {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 
   const { phones, message, mediaItems } = parsed.data;
   const textContent = message?.trim() || undefined;
   const results: { phone: string; success: boolean; error?: string | null }[] = [];
+  const total = phones.length;
   let sent = 0;
   let failed = 0;
 
-  for (const rawPhone of phones) {
+  for (let idx = 0; idx < phones.length; idx++) {
+    const rawPhone = phones[idx];
     const phone = rawPhone.replace(/[\s+\-()]/g, "");
+    const remaining = total - idx - 1;
+
     if (!phone || phone.length < 10) {
       results.push({ phone: rawPhone, success: false, error: "Invalid phone number" });
       failed++;
+      sendEvent({ type: "progress", phone: rawPhone, success: false, error: "Invalid phone number", sent, failed, remaining, total });
       continue;
     }
+
+    // Notify frontend we're starting this phone
+    sendEvent({ type: "sending", phone, sent, failed, remaining: remaining + 1, total });
 
     try {
       const hasMedia = mediaItems && mediaItems.length > 0;
       const hasText = !!textContent;
 
       if (hasMedia) {
-        // Send all media items first (no caption) — they will appear above the text
         for (let i = 0; i < mediaItems.length; i++) {
           if (i > 0) await delay(800);
 
@@ -72,7 +92,6 @@ router.post("/send", async (req, res) => {
           }
         }
 
-        // Send text as a separate message after all media (appears below media in chat)
         if (hasText) {
           await delay(600);
           await svc.sendText(phone, textContent!);
@@ -83,18 +102,22 @@ router.post("/send", async (req, res) => {
 
       results.push({ phone, success: true, error: null });
       sent++;
+      sendEvent({ type: "progress", phone, success: true, error: null, sent, failed, remaining, total });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Send failed";
       logger.error({ phone, err: e }, `campaign send failed: ${msg}`);
       results.push({ phone, success: false, error: msg });
       failed++;
+      sendEvent({ type: "progress", phone, success: false, error: msg, sent, failed, remaining, total });
     }
 
-    // Delay between recipients to avoid spam detection
-    await delay(600);
+    if (idx < phones.length - 1) {
+      await delay(600);
+    }
   }
 
-  return res.json({ total: phones.length, sent, failed, results });
+  sendEvent({ type: "complete", sent, failed, total, results });
+  res.end();
 });
 
 export default router;

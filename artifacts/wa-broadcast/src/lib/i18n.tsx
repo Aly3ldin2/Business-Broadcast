@@ -262,6 +262,20 @@ const T: Record<string, { ar: string; en: string }> = {
   country_search: { ar: "ابحث عن دولة...", en: "Search country..." },
   country_no_results: { ar: "لا توجد نتائج", en: "No results" },
 
+  // Send progress overlay
+  progress_in_progress:    { ar: "جارٍ الآن", en: "In progress" },
+  progress_sending:        { ar: "جارٍ إرسال الحملة...", en: "Sending Campaign..." },
+  progress_complete_label: { ar: "اكتمل الإرسال", en: "Complete" },
+  progress_complete:       { ar: "تمّت الحملة!", en: "Campaign Done!" },
+  progress_sent:           { ar: "تم الإرسال", en: "Sent" },
+  progress_failed:         { ar: "فشل", en: "Failed" },
+  progress_remaining:      { ar: "متبقٍّ", en: "Remaining" },
+  progress_total:          { ar: "إجمالي", en: "total" },
+  progress_current:        { ar: "جارٍ الإرسال إلى", en: "Sending to" },
+  progress_done:           { ar: "تم ✓", en: "Done ✓" },
+  progress_view_results:   { ar: "عرض النتائج", en: "View Results" },
+  progress_partial_note:   { ar: "تعذّر إرسال {failed} رسالة", en: "{failed} message(s) failed to send" },
+
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
