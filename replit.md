@@ -1,63 +1,63 @@
 # WhatsApp Broadcast Manager
 
-A free, self-hosted broadcast system for WhatsApp Business API — lets businesses send bulk messages to contact lists, manage templates, and track delivery stats.
-
-## Run & Operate
-
-- **API Server** runs on port 8080 via the `artifacts/api-server: API Server` workflow
-- **Frontend** runs on port 26033 via the `artifacts/wa-broadcast: web` workflow
-- `pnpm --filter @workspace/api-server run dev` — run the API server manually
-- `pnpm --filter @workspace/wa-broadcast run dev` — run the frontend manually
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Optional env: `DATABASE_PATH` — SQLite file path (defaults to `app.db` in the project root)
-- Optional env: `BAILEYS_AUTH_PATH` — Baileys session directory (defaults to `.baileys_auth/`)
-- Optional env: `ALLOWED_ORIGIN` — restrict CORS to a specific origin in production
-- Required env: `PORT` — injected automatically by Replit workflows
-- Email (forgot password): `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` — all required to enable email password reset
+A full-stack web application for sending bulk WhatsApp messages via the Meta Business API. Manages contacts, lists, message templates, and broadcast campaigns.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- Frontend: React + Vite (artifacts/wa-broadcast)
-- API: Express 5 (artifacts/api-server)
-- DB: SQLite (Node.js built-in `DatabaseSync`) + Drizzle ORM — no external DB needed
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- **Backend:** Node.js 22, Express 5, Drizzle ORM + SQLite (`node:sqlite`)
+- **Frontend:** React 19, Vite 7, Tailwind CSS 4, TanStack Query, Wouter
+- **Monorepo:** pnpm workspaces (`artifacts/`, `lib/`)
+- **WhatsApp:** `@whiskeysockets/baileys` + Meta Business API v19.0
 
-## Where things live
+## How to Run
 
-- `lib/api-spec/openapi.yaml` — API contract source of truth
-- `lib/db/src/schema/` — DB schema (contacts, lists, templates, broadcasts, settings)
-- `artifacts/api-server/src/routes/` — Express route handlers
-- `artifacts/wa-broadcast/src/pages/` — React pages
+Two workflows run in parallel:
 
-## Architecture decisions
+| Workflow | Command | Port |
+|---|---|---|
+| `API Server` | `PORT=8080 pnpm --filter @workspace/api-server run dev` | 8080 |
+| `artifacts/wa-broadcast: web` | `pnpm --filter @workspace/wa-broadcast run dev` | 26033 |
 
-- WhatsApp messages are sent server-side via Meta Graph API v19.0 at send time (no queue)
-- Access tokens are stored in the DB (settings table) — single-tenant app
-- Templates are locally tracked; approval status must be managed in Meta Business Manager
-- CSV import is parsed client-side before sending to server
-- The `accessToken` field is masked (first 8 chars + "...") in GET /settings responses
+The Vite dev server proxies `/api` requests to the API server via `API_PORT=8080` (set as a shared env var).
 
-## Product
+## Environment Variables
 
-- Dashboard: live stats (contacts, lists, broadcasts, delivery/read rates)
-- Contacts: add, edit, delete, search, import from CSV
-- Lists: group contacts into named lists for targeted broadcasts
-- Templates: create and manage WhatsApp message templates
-- Broadcasts: create campaigns (template + list), send via API, track per-message delivery
-- Settings: enter WhatsApp API credentials with built-in setup guide + test connection
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `API_PORT` | Yes (dev) | — | Port of the API server; used by Vite proxy. Set to `8080`. |
+| `DATABASE_PATH` | No | `app.db` | Path to the SQLite database file |
+| `BAILEYS_AUTH_PATH` | No | `.baileys_auth/` | Directory for WhatsApp session storage |
+| `PORT` | Yes (API) | — | Port the API server listens on |
+| `SMTP_HOST` | No | — | SMTP server for password-reset emails |
+| `SMTP_PORT` | No | — | SMTP port |
+| `SMTP_USER` | No | — | SMTP username |
+| `SMTP_PASS` | No | — | SMTP password (secret) |
+| `SMTP_FROM` | No | — | From address for system emails |
+| `SESSION_SECRET` | Yes | — | Secret for signing session cookies (stored as Replit Secret) |
 
-## Gotchas
+## Project Structure
 
-- WhatsApp templates must be approved by Meta before they can be sent in broadcasts
-- The free tier of WhatsApp Business Cloud API allows 1,000 business-initiated conversations/month
-- Phone numbers must be in international format without "+" (e.g. 201012345678)
+```
+artifacts/
+  api-server/   — Express backend (builds to dist/index.mjs via esbuild)
+  wa-broadcast/ — React + Vite frontend
+  mockup-sandbox/ — Canvas component preview server
+lib/
+  db/           — Drizzle ORM schema + SQLite access
+  api-zod/      — Zod schemas generated from OpenAPI spec
+  api-client-react/ — TanStack Query hooks generated via Orval
+  api-spec/     — openapi.yaml source of truth
+scripts/
+  post-merge.sh — Runs `pnpm install --frozen-lockfile` after task merges
+```
 
-## Pointers
+## Notes
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Requires **Node.js 22+** — uses `node:sqlite` (built-in, experimental in Node 22)
+- First run shows an account-creation screen to set up the admin user
+- WhatsApp tokens and Meta API credentials are stored in the SQLite database after setup
+- Production deployment uses a persistent disk at `/data/app.db` (see `render.yaml`)
+
+## User Preferences
+
+_None recorded yet._
