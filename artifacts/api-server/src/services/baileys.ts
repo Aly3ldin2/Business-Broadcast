@@ -29,6 +29,12 @@ export class BaileysService {
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Pending pairing-code request waiting for the next WS connection */
   private _pendingPairing: PendingPairing | null = null;
+  /**
+   * Cached WA version — fetched once on first connect, reused on every reconnect.
+   * Avoids a slow GitHub network round-trip after QR scan that would delay the
+   * post-pairing reconnect and cause the pairing window to expire on WA's side.
+   */
+  private _waVersion: [number, number, number] | undefined;
 
   constructor(private userId: string) {}
 
@@ -48,7 +54,15 @@ export class BaileysService {
     try {
       await mkdir(this.authDir, { recursive: true });
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
-      const { version } = await fetchLatestBaileysVersion();
+
+      // Fetch WA version only once; reuse on all subsequent reconnects so we
+      // don't incur a slow GitHub round-trip right after a QR scan (which would
+      // delay the reconnect and cause the pairing window to expire on WA's side).
+      if (!this._waVersion) {
+        const { version } = await fetchLatestBaileysVersion();
+        this._waVersion = version as [number, number, number];
+      }
+      const version = this._waVersion;
 
       const sock = makeWASocket({
         version,
@@ -92,16 +106,22 @@ export class BaileysService {
           this._qr = null;
           this._socketReady = false;
           this._initializing = false;
+
+          // Clear the socket reference immediately so the next initialize() call
+          // starts clean and any stale event guards (this.sock !== sock) work correctly.
+          if (this.sock === sock) this.sock = null;
+
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
           if (!isLoggedOut) {
             // restartRequired fires as a routine part of WA's handshake right after
-            // pairing/login — reconnect immediately so `connected` doesn't sit false
-            // for several seconds and make an in-flight send look "disconnected".
+            // pairing/login. Give credentials 1 s to flush to disk before re-reading
+            // them in the next initialize() call (previously 250 ms which could race
+            // the async saveCreds write on slow-I/O environments like Replit).
             const isRestartRequired = statusCode === DisconnectReason.restartRequired;
             this._reconnectTimer = setTimeout(
               () => void this.initialize(),
-              isRestartRequired ? 250 : 5_000,
+              isRestartRequired ? 1_000 : 5_000,
             );
           } else {
             // Logged out — reject any pending pairing
