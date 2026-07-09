@@ -472,7 +472,16 @@ export default function Campaign() {
 
   const processFiles = useCallback(async (files: File[]) => {
     const ACCEPTED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    const ACCEPTED_VIDEO = ["video/mp4"];
+    // Accept all common video types — the backend transcodes non-MP4 to H.264/MP4
+    const ACCEPTED_VIDEO = [
+      "video/mp4",
+      "video/quicktime",   // .mov (iPhone default)
+      "video/x-m4v",      // .m4v (Apple devices)
+      "video/x-msvideo",  // .avi
+      "video/webm",        // .webm (Chrome/Android)
+      "video/x-matroska", // .mkv
+      "video/3gpp",        // .3gp (older Android)
+    ];
     const validFiles = files.filter((f) => ACCEPTED_IMAGE.includes(f.type) || ACCEPTED_VIDEO.includes(f.type));
     const rejected = files.filter((f) => !ACCEPTED_IMAGE.includes(f.type) && !ACCEPTED_VIDEO.includes(f.type));
     if (rejected.length > 0) {
@@ -710,7 +719,7 @@ export default function Campaign() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4"
+          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v,video/x-msvideo,video/webm,video/x-matroska,video/3gpp"
           className="hidden"
           onChange={handleFileInput}
         />
