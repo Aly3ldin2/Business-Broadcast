@@ -3,6 +3,7 @@ import { baileysServiceManager } from "../services/baileysManager";
 import { SendCampaignBody } from "@workspace/api-zod";
 import { mediaStore } from "./media";
 import { logger } from "../lib/logger";
+import { transcodeVideoBuffer } from "../lib/video";
 
 const router = Router();
 
@@ -79,10 +80,11 @@ router.post("/send", async (req, res) => {
           const item = mediaItems[i];
           let buf: Buffer | null = null;
           let mime = "image/jpeg";
+          let seconds: number | undefined;
 
           if (item.id) {
             const stored = mediaStore.get(item.id);
-            if (stored) { buf = stored.buffer; mime = stored.mimetype; }
+            if (stored) { buf = stored.buffer; mime = stored.mimetype; seconds = stored.seconds; }
           } else if (item.url) {
             const resp = await fetch(item.url);
             if (!resp.ok) {
@@ -90,6 +92,17 @@ router.post("/send", async (req, res) => {
             }
             buf = Buffer.from(await resp.arrayBuffer());
             mime = resp.headers.get("content-type") ?? "image/jpeg";
+
+            // URL-sourced videos bypass the upload transcode pipeline, so
+            // re-encode them here too — otherwise a non-H.264/non-MP4 remote
+            // video would still reach WhatsApp unconverted and risk arriving
+            // damaged/unplayable, same as a direct upload would have.
+            if (item.type === "video") {
+              const result = await transcodeVideoBuffer(buf);
+              buf = result.buffer;
+              seconds = result.seconds;
+              mime = "video/mp4";
+            }
           }
 
           if (!buf) {
@@ -103,7 +116,7 @@ router.post("/send", async (req, res) => {
           if (item.type === "image") {
             await svc.sendImage(phone, buf, mime);
           } else if (item.type === "video") {
-            await svc.sendVideo(phone, buf, mime);
+            await svc.sendVideo(phone, buf, mime, undefined, seconds);
           }
         }
 
