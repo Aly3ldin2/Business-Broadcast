@@ -1,6 +1,6 @@
 {
-  "name": "WhatsApp Broadcast Manager",
-  "short_name": "Broadcast",
+  "name": "WhatsApp Broadcast",
+  "short_name": "WhatsApp Broadcast",
   "description": "WhatsApp Broadcast Manager",
   "start_url": "/",
   "display": "standalone",
