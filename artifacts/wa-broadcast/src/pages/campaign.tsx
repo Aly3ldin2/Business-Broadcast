@@ -27,13 +27,13 @@ import {
   Send, Loader2, CloudUpload,
   CheckCircle2, XCircle, Video,
   AlertTriangle, Users, KeyboardIcon,
-  Pencil, Check, X, PenLine, UploadCloud, Hash, Plus,
+  Pencil, Check, X, PenLine, UploadCloud, Plus,
   ChevronDown, ChevronRight, ImageIcon, PartyPopper,
   MessageCircle, Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CountryPicker } from "@/components/country-picker";
-import { findCountry, parseRawNumbers, type Country } from "@/data/countries";
+import { findCountry, type Country } from "@/data/countries";
 import { useI18n } from "@/lib/i18n";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
@@ -338,8 +338,6 @@ export default function Campaign() {
   const [phoneList, setPhoneList] = useState<string[]>([]);
   const [phoneNames, setPhoneNames] = useState<Record<string, string>>({});
   const phoneInputRef = useRef<HTMLInputElement>(null);
-  const [showBulkPaste, setShowBulkPaste] = useState(false);
-  const [bulkText, setBulkText] = useState("");
 
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importContacts, setImportContacts] = useState<SyncedContact[] | null>(null);
@@ -448,14 +446,6 @@ export default function Campaign() {
 
   function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") { e.preventDefault(); addPhone(); }
-  }
-
-  function addBulk() {
-    const nums = parseRawNumbers(bulkText, country.dialCode);
-    if (!nums.length) return;
-    setPhoneList((prev) => Array.from(new Set([...prev, ...nums])));
-    setBulkText("");
-    setShowBulkPaste(false);
   }
 
   function togglePhone(num: string) {
@@ -945,54 +935,13 @@ export default function Campaign() {
                       <Plus className="h-4 w-4" />{t("campaign_add_phone")}
                     </button>
                     <button
-                      onClick={() => { setShowBulkPaste((v) => !v); setBulkText(""); }}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <Hash className="h-3.5 w-3.5" />{t("campaign_bulk_paste")}
-                    </button>
-                    <button
                       onClick={() => void openImport()}
                       className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />{t("lists_import_wa_title")}
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">{t("campaign_or_paste")}</p>
                 </div>
-
-                {showBulkPaste && (
-                  <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
-                    <p className="text-xs text-muted-foreground">{t("campaign_paste_hint")}</p>
-                    <textarea
-                      value={bulkText}
-                      onChange={(e) => setBulkText(e.target.value)}
-                      placeholder={`${country.sample}\n${country.sample.slice(0, -3)}456\n...`}
-                      rows={5}
-                      dir="ltr"
-                      className="w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono resize-none outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/40"
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={addBulk}
-                        disabled={!bulkText.trim()}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />{t("campaign_add_all")}
-                      </button>
-                      <button
-                        onClick={() => { setShowBulkPaste(false); setBulkText(""); }}
-                        className="px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:bg-muted transition-colors"
-                      >
-                        {t("campaign_cancel")}
-                      </button>
-                      {bulkText.trim() && (
-                        <span className="text-xs text-muted-foreground">
-                          {parseRawNumbers(bulkText, country.dialCode).length} {t("campaign_number_label")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 {phoneList.length > 0 && (
                   <div className="space-y-2">

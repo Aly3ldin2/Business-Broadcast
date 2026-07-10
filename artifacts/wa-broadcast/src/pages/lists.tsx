@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryPicker } from "@/components/country-picker";
-import { findCountry, parseRawNumbers, type Country } from "@/data/countries";
+import { findCountry, type Country } from "@/data/countries";
 import {
   useLoadPhonesFromGist,
   useSavePhonesToGist,
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, Trash2, Pencil, Loader2, Github,
-  Users, Hash, X, User, UserPlus,
+  Users, X, User, UserPlus,
   Check, MessageCircle, Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -149,8 +149,6 @@ export default function Lists() {
   const [formContacts, setFormContacts] = useState<Contact[]>([]);
   const [formPhoneInput, setFormPhoneInput] = useState("");
   const [formNameInput, setFormNameInput] = useState("");
-  const [showBulkPaste, setShowBulkPaste] = useState(false);
-  const [bulkText, setBulkText] = useState("");
   const [country, setCountry] = useState<Country>(() =>
     findCountry(localStorage.getItem("wa_country") ?? "EG")
   );
@@ -176,20 +174,6 @@ export default function Lists() {
 
   function removeFormContact(num: string) {
     setFormContacts((prev) => prev.filter((c) => c.number !== num));
-  }
-
-  function addBulk() {
-    const nums = parseRawNumbers(bulkText, country.dialCode);
-    if (nums.length === 0) return;
-    setFormContacts((prev) => {
-      const existing = new Set(prev.map((c) => c.number));
-      return [
-        ...prev,
-        ...nums.filter((n) => !existing.has(n)).map((n) => ({ number: n, name: null })),
-      ];
-    });
-    setBulkText("");
-    setShowBulkPaste(false);
   }
 
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -273,14 +257,12 @@ export default function Lists() {
   function openCreate() {
     setFormName(""); setFormContacts([]);
     setFormPhoneInput(""); setFormNameInput("");
-    setShowBulkPaste(false); setBulkText("");
     setIsCreateOpen(true);
   }
 
   function openEdit(list: PhoneList) {
     setFormName(list.name); setFormContacts(list.phones);
     setFormPhoneInput(""); setFormNameInput("");
-    setShowBulkPaste(false); setBulkText("");
     setEditList(list);
   }
 
@@ -609,48 +591,8 @@ export default function Lists() {
                   <Plus className="h-3.5 w-3.5" />
                   {t("lists_add_btn")}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowBulkPaste((v) => !v); setBulkText(""); }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <Hash className="h-3.5 w-3.5" />
-                  {t("lists_bulk_paste")}
-                </button>
                 <span className="text-xs text-muted-foreground">{t("lists_enter_to_add")}</span>
               </div>
-
-              {showBulkPaste && (
-                <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
-                  <p className="text-xs text-muted-foreground">{t("lists_bulk_hint")}</p>
-                  <textarea
-                    value={bulkText}
-                    onChange={(e) => setBulkText(e.target.value)}
-                    placeholder={`${country.sample}\n${country.sample.slice(0, -3)}456`}
-                    rows={4}
-                    dir="ltr"
-                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm font-mono resize-none outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/40"
-                  />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={addBulk}
-                      disabled={!bulkText.trim()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {t("lists_add_all")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowBulkPaste(false); setBulkText(""); }}
-                      className="px-3 py-1.5 rounded-lg border text-sm text-muted-foreground hover:bg-muted transition-colors"
-                    >
-                      {t("cancel")}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Contacts list in form */}

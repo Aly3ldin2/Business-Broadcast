@@ -230,17 +230,3 @@ export function applyCountryCode(text: string, dialCode: string): string {
   });
   return result.join("\n");
 }
-
-export function parseRawNumbers(text: string, dialCode: string): string[] {
-  const digits = dialCode.replace("+", "");
-  return text
-    .split(/[\n,،;\s]+/)
-    .map((p) => {
-      let num = p.trim().replace(/[\s+\-()]/g, "");
-      if (!num) return "";
-      if (num.startsWith(digits)) return num;
-      if (num.startsWith("0")) num = num.slice(1);
-      return digits + num;
-    })
-    .filter((p) => p.length >= 9);
-}
