@@ -1,0 +1,1 @@
+- [Baileys contact name vs notify](wa-baileys-contacts.md) — use `c.name` only for "saved contact" filtering; `c.notify` is the other person's own pushName, not a sign the number is saved locally.

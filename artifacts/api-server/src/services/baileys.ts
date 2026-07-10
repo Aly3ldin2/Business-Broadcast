@@ -169,7 +169,12 @@ export class BaileysService {
           if (!pnSource) continue;
           const number = pnSource.replace("@s.whatsapp.net", "").replace(/\D/g, "");
           if (!number) continue;
-          const name = c.name ?? c.notify ?? null;
+          // Only `name` reflects a name actually saved in the user's phone
+          // contacts. `notify` is the pushName the *other* person chose for
+          // themselves (e.g. shown in chats/groups) and is present even for
+          // numbers the user never saved — using it as a fallback was why
+          // unsaved numbers kept showing up with a "name".
+          const name = c.name ?? null;
           const existing = this._contacts.get(number);
           this._contacts.set(number, { number, name: name ?? existing?.name ?? null });
         }
