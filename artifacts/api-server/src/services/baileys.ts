@@ -237,16 +237,19 @@ export class BaileysService {
   }
 
   /**
-   * Returns the synced WhatsApp contact book, sorted by name (contacts
-   * without a saved name last, sorted by number).
+   * Returns the synced WhatsApp contact book, sorted by name.
+   *
+   * Only entries with a saved name are included — WhatsApp also reports
+   * plain phone numbers the user has merely chatted with (or that share a
+   * group), which were never actually saved to their phone contacts. Those
+   * have no `name`/`notify` and would otherwise show up as bare, unrecognized
+   * numbers in the import list, which is exactly what users don't want to
+   * see here.
    */
   getContacts(): SyncedContact[] {
-    return [...this._contacts.values()].sort((a, b) => {
-      if (a.name && b.name) return a.name.localeCompare(b.name);
-      if (a.name) return -1;
-      if (b.name) return 1;
-      return a.number.localeCompare(b.number);
-    });
+    return [...this._contacts.values()]
+      .filter((c) => !!c.name?.trim())
+      .sort((a, b) => a.name!.localeCompare(b.name!));
   }
 
   /**
