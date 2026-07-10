@@ -11,11 +11,11 @@ A full-stack web application for sending bulk WhatsApp messages via the Meta Bus
 
 ## How to Run
 
-Two workflows run in parallel:
+Two workflows run in parallel (managed as Replit artifacts):
 
 | Workflow | Command | Port |
 |---|---|---|
-| `API Server` | `PORT=8080 pnpm --filter @workspace/api-server run dev` | 8080 |
+| `artifacts/api-server: API Server` | `PORT=8080 pnpm --filter @workspace/api-server run dev` | 8080 |
 | `artifacts/wa-broadcast: web` | `pnpm --filter @workspace/wa-broadcast run dev` | 26033 |
 
 The Vite dev server proxies `/api` requests to the API server via `API_PORT=8080` (set as a shared env var).
