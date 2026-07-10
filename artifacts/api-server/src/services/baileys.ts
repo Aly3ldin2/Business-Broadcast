@@ -19,11 +19,19 @@ interface PendingPairing {
   timer: ReturnType<typeof setTimeout>;
 }
 
+export interface SyncedContact {
+  /** Phone number without the "+" or "@s.whatsapp.net" suffix */
+  number: string;
+  name: string | null;
+}
+
 export class BaileysService {
   private sock: ReturnType<typeof makeWASocket> | null = null;
   private _qr: string | null = null;
   private _connected = false;
   private _initializing = false;
+  /** In-memory contact book, populated from Baileys' contacts sync events */
+  private _contacts = new Map<string, SyncedContact>();
   /** true once the WS to WA servers is confirmed open (QR fired or connection opened) */
   private _socketReady = false;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -138,6 +146,38 @@ export class BaileysService {
       });
 
       sock.ev.on("creds.update", saveCreds);
+
+      // Populate the in-memory contact book from WhatsApp's own sync events.
+      // "messaging-history.set" fires once after login with the bulk contact
+      // list; "contacts.upsert"/"contacts.update" keep it current afterwards.
+      const upsertContacts = (
+        list: {
+          id?: string;
+          lid?: string;
+          phoneNumber?: string;
+          name?: string | null;
+          notify?: string | null;
+        }[],
+      ) => {
+        for (const c of list) {
+          // Baileys v7 contacts may report `id` as either a PN JID
+          // (@s.whatsapp.net) or an LID (@lid) — LID-based contacts carry
+          // the actual phone number separately in `phoneNumber`. Without
+          // this fallback, LID-only contacts were silently dropped.
+          const pnSource =
+            (c.id?.endsWith("@s.whatsapp.net") ? c.id : undefined) ?? c.phoneNumber;
+          if (!pnSource) continue;
+          const number = pnSource.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+          if (!number) continue;
+          const name = c.name ?? c.notify ?? null;
+          const existing = this._contacts.get(number);
+          this._contacts.set(number, { number, name: name ?? existing?.name ?? null });
+        }
+      };
+
+      sock.ev.on("messaging-history.set", ({ contacts }) => upsertContacts(contacts ?? []));
+      sock.ev.on("contacts.upsert", (contacts) => upsertContacts(contacts));
+      sock.ev.on("contacts.update", (updates) => upsertContacts(updates));
     } catch {
       this._initializing = false;
       this._socketReady = false;
@@ -194,6 +234,19 @@ export class BaileysService {
       /** true once WA WebSocket is open and pairing code can be requested */
       socketReady: this._socketReady,
     };
+  }
+
+  /**
+   * Returns the synced WhatsApp contact book, sorted by name (contacts
+   * without a saved name last, sorted by number).
+   */
+  getContacts(): SyncedContact[] {
+    return [...this._contacts.values()].sort((a, b) => {
+      if (a.name && b.name) return a.name.localeCompare(b.name);
+      if (a.name) return -1;
+      if (b.name) return 1;
+      return a.number.localeCompare(b.number);
+    });
   }
 
   /**
@@ -294,6 +347,7 @@ export class BaileysService {
 
   async logout() {
     this._rejectPendingPairing(new Error("تم تسجيل الخروج"));
+    this._contacts.clear();
 
     const sock = this.sock;
     this.sock = null;

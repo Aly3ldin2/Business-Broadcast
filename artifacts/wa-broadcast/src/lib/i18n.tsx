@@ -194,6 +194,18 @@ const T: Record<string, { ar: string; en: string }> = {
   lists_delete_desc: { ar: "هيتم حذف قائمة \"{name}\" نهائياً من GitHub Gist.", en: "List \"{name}\" will be permanently deleted from GitHub Gist." },
   lists_deleted: { ar: "تم حذف \"{name}\"", en: "Deleted \"{name}\"" },
   lists_delete_fail: { ar: "فشل الحذف", en: "Delete Failed" },
+
+  lists_import_wa: { ar: "استيراد من واتساب", en: "Import from WhatsApp" },
+  lists_import_wa_title: { ar: "استيراد جهات اتصال واتساب", en: "Import WhatsApp Contacts" },
+  lists_import_wa_search: { ar: "بحث بالاسم أو الرقم...", en: "Search by name or number..." },
+  lists_import_wa_select_all: { ar: "تحديد الكل", en: "Select all" },
+  lists_import_wa_deselect_all: { ar: "إلغاء التحديد", en: "Deselect all" },
+  lists_import_wa_selected: { ar: "{n} محدد", en: "{n} selected" },
+  lists_import_wa_empty: { ar: "لا توجد جهات اتصال متزامنة بعد — تأكد إن واتساب متصل وانتظر لحظات بعد الربط", en: "No contacts synced yet — make sure WhatsApp is connected and wait a moment after linking" },
+  lists_import_wa_not_connected: { ar: "واتساب غير متصل — اذهب للإعدادات واربط الحساب أولاً", en: "WhatsApp not connected — go to Settings and link your account first" },
+  lists_import_wa_loading: { ar: "جارِ تحميل جهات الاتصال...", en: "Loading contacts..." },
+  lists_import_wa_add_btn: { ar: "إضافة المحدد ({n})", en: "Add selected ({n})" },
+  lists_import_wa_no_results: { ar: "لا توجد نتائج", en: "No results" },
   cancel: { ar: "إلغاء", en: "Cancel" },
   delete: { ar: "حذف", en: "Delete" },
 

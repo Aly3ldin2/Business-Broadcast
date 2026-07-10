@@ -32,14 +32,21 @@ import {
 import {
   Plus, Trash2, Pencil, Loader2, Github,
   Users, Hash, X, User, UserPlus,
-  Check,
+  Check, MessageCircle, Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
 
+const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
+
 interface PhoneList {
   name: string;
   phones: Contact[];
+}
+
+interface SyncedContact {
+  number: string;
+  name: string | null;
 }
 
 function getInitials(name: string | null | undefined, number: string): string {
@@ -183,6 +190,84 @@ export default function Lists() {
     });
     setBulkText("");
     setShowBulkPaste(false);
+  }
+
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importContacts, setImportContacts] = useState<SyncedContact[] | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSearch, setImportSearch] = useState("");
+  const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
+
+  async function openImport() {
+    setIsImportOpen(true);
+    setImportSearch("");
+    setImportSelected(new Set());
+    setImportError(null);
+    setImportLoading(true);
+    try {
+      const statusRes = await fetch(`${BASE}/api/baileys/status`, { credentials: "include" });
+      const status = await statusRes.json();
+      if (!status?.connected) {
+        setImportError(t("lists_import_wa_not_connected"));
+        setImportContacts(null);
+        return;
+      }
+      const res = await fetch(`${BASE}/api/baileys/contacts`, { credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setImportContacts(data.contacts ?? []);
+    } catch (e: unknown) {
+      setImportError((e as Error)?.message || t("lists_save_fail"));
+      setImportContacts(null);
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  const filteredImportContacts = (importContacts ?? []).filter((c) => {
+    if (!importSearch.trim()) return true;
+    const q = importSearch.trim().toLowerCase();
+    return c.number.includes(q) || (c.name?.toLowerCase().includes(q) ?? false);
+  });
+
+  function toggleImportSelected(number: string) {
+    setImportSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(number)) next.delete(number);
+      else next.add(number);
+      return next;
+    });
+  }
+
+  function toggleSelectAllImport() {
+    const filteredNumbers = filteredImportContacts.map((c) => c.number);
+    const allFilteredSelected =
+      filteredNumbers.length > 0 && filteredNumbers.every((n) => importSelected.has(n));
+    setImportSelected((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        // Deselect only the contacts currently visible under the filter.
+        for (const n of filteredNumbers) next.delete(n);
+      } else {
+        // Select all contacts currently visible, keeping selections made
+        // under a previous, different filter intact.
+        for (const n of filteredNumbers) next.add(n);
+      }
+      return next;
+    });
+  }
+
+  function addImportedToForm() {
+    const toAdd = (importContacts ?? []).filter((c) => importSelected.has(c.number));
+    setFormContacts((prev) => {
+      const existing = new Set(prev.map((c) => c.number));
+      return [
+        ...prev,
+        ...toAdd.filter((c) => !existing.has(c.number)).map((c) => ({ number: c.number, name: c.name })),
+      ];
+    });
+    setIsImportOpen(false);
   }
 
   function openCreate() {
@@ -472,7 +557,17 @@ export default function Lists() {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("lists_add_contact")}</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">{t("lists_add_contact")}</Label>
+                <button
+                  type="button"
+                  onClick={() => void openImport()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 dark:text-emerald-400 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {t("lists_import_wa")}
+                </button>
+              </div>
 
               <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
                 <div className="border-r border-border">
@@ -605,6 +700,120 @@ export default function Lists() {
             >
               {saveMutation.isPending && <Loader2 className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"} animate-spin`} />}
               {editList ? t("lists_save_changes") : t("lists_create_btn")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Import from WhatsApp Dialog ── */}
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto flex flex-col" dir={dir}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              {t("lists_import_wa_title")}
+            </DialogTitle>
+          </DialogHeader>
+
+          {importLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-10 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("lists_import_wa_loading")}
+            </div>
+          )}
+
+          {!importLoading && importError && (
+            <div className="py-10 text-center text-sm text-destructive">{importError}</div>
+          )}
+
+          {!importLoading && !importError && importContacts && (
+            <div className="flex flex-col gap-3 min-h-0">
+              <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
+                <div className="flex items-center px-3 border-r border-border text-muted-foreground">
+                  <Search className="h-3.5 w-3.5" />
+                </div>
+                <input
+                  autoFocus
+                  type="text"
+                  value={importSearch}
+                  onChange={(e) => setImportSearch(e.target.value)}
+                  placeholder={t("lists_import_wa_search")}
+                  className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground/40 min-w-0"
+                />
+              </div>
+
+              {importContacts.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  {t("lists_import_wa_empty")}
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllImport}
+                      className="text-primary hover:underline font-medium"
+                    >
+                      {filteredImportContacts.length > 0 &&
+                      filteredImportContacts.every((c) => importSelected.has(c.number))
+                        ? t("lists_import_wa_deselect_all")
+                        : t("lists_import_wa_select_all")}
+                    </button>
+                    <span className="text-muted-foreground">
+                      {t("lists_import_wa_selected", { n: importSelected.size })}
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border bg-muted/20 divide-y max-h-72 overflow-y-auto">
+                    {filteredImportContacts.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-6">
+                        {t("lists_import_wa_no_results")}
+                      </p>
+                    ) : (
+                      filteredImportContacts.map((c) => {
+                        const checked = importSelected.has(c.number);
+                        const initials = getInitials(c.name, c.number);
+                        const color = avatarColor(c.number);
+                        return (
+                          <label
+                            key={c.number}
+                            className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleImportSelected(c.number)}
+                              className="h-4 w-4 rounded border-border accent-primary shrink-0"
+                            />
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${color}`}>
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {c.name ? (
+                                <>
+                                  <p className="text-sm font-medium truncate leading-tight">{c.name}</p>
+                                  <p className="text-xs text-muted-foreground font-mono" dir="ltr">{c.number}</p>
+                                </>
+                              ) : (
+                                <p className="text-sm font-mono text-muted-foreground" dir="ltr">{c.number}</p>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-2">
+            <Button
+              onClick={addImportedToForm}
+              disabled={importSelected.size === 0}
+            >
+              {t("lists_import_wa_add_btn", { n: importSelected.size })}
             </Button>
           </DialogFooter>
         </DialogContent>

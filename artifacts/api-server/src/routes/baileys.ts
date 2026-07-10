@@ -18,6 +18,12 @@ router.get("/status", (req, res) => {
   });
 });
 
+router.get("/contacts", (req, res) => {
+  const userId = getUserId(req);
+  const contacts = baileysServiceManager.get(userId).getContacts();
+  return res.json({ contacts });
+});
+
 router.post("/pair", async (req, res) => {
   const userId = getUserId(req);
   const { phone } = req.body as { phone?: string };
