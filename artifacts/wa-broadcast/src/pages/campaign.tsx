@@ -613,14 +613,20 @@ export default function Campaign() {
 
     setMediaItems((prev) => [...prev, ...newItems]);
 
-    for (const item of newItems) {
+    // Run each item's validation + upload independently and in parallel
+    // (instead of one-at-a-time) — with several files selected together,
+    // this lets their uploads happen concurrently instead of queued behind
+    // each other, which is the main speed win for multi-file selections.
+    // A per-item try/catch means one failure never blocks or cancels the
+    // others.
+    async function runItem(item: MediaItem) {
       if (item.file.size > MAX_FILE_SIZE) {
         setMediaItems((prev) =>
           prev.map((m) => m.id === item.id
             ? { ...m, uploading: false, uploadError: t("campaign_file_too_large") }
             : m)
         );
-        continue;
+        return;
       }
 
       if (item.type === "video") {
@@ -632,7 +638,7 @@ export default function Campaign() {
                 ? { ...m, uploading: false, uploadError: t("campaign_video_too_long", { n: Math.round(duration / 60) }) }
                 : m)
             );
-            continue;
+            return;
           }
         } catch { /* ignore */ }
       }
@@ -652,6 +658,22 @@ export default function Campaign() {
         );
       }
     }
+
+    // Bounded concurrency: run at most a few items at once instead of one
+    // unbounded Promise.all. This still lets multi-file selections upload
+    // far faster than the old fully-sequential loop, but caps how many
+    // ffmpeg transcodes / uploads the single backend process has to handle
+    // at the same time, so a batch of several videos can't overwhelm the
+    // server's CPU/disk or the request pipeline.
+    const CONCURRENCY = 3;
+    let cursor = 0;
+    async function worker() {
+      while (cursor < newItems.length) {
+        const item = newItems[cursor++];
+        await runItem(item);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, newItems.length) }, worker));
   }, [t]);
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {

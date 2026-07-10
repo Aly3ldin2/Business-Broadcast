@@ -113,16 +113,20 @@ export async function transcodeVideoFile(inputPath: string): Promise<TranscodeRe
     // Full re-encode path — guarantees H.264/AAC/MP4 output regardless of
     // the original codec (H.265, VP9, MPEG-4…) or container.
     //
-    // "superfast" (vs. the previous "veryfast") roughly halves encode time
-    // for the same CRF with only a marginal bitrate/size cost — quality and
-    // playback compatibility are unaffected, since CRF still targets the
-    // same perceptual quality regardless of preset. "-threads 0" lets
-    // ffmpeg use all available CPU cores instead of the default guess.
+    // "ultrafast" (vs. the previous "superfast") is libx264's fastest
+    // preset — for a 5-minute clip this can cut re-encode time roughly in
+    // half again on top of the superfast->veryfast jump, at the cost of a
+    // somewhat larger output file for the same CRF. That trade only affects
+    // bitrate/size, never correctness: CRF still targets the same
+    // perceptual quality and the output is still standard H.264/yuv420p, so
+    // it plays back identically — never "damaged" — on WhatsApp. "-threads
+    // 0" lets ffmpeg use all available CPU cores instead of the default
+    // guess, which matters most for long (multi-minute) clips.
     await execFileAsync("ffmpeg", [
       "-y",
       "-i", inputPath,
       "-c:v", "libx264",
-      "-preset", "superfast",
+      "-preset", "ultrafast",
       "-threads", "0",
       "-crf", "23",
       "-pix_fmt", "yuv420p", // ensures broad playback compatibility
