@@ -23,6 +23,9 @@ const T: Record<string, { ar: string; en: string }> = {
   // Language toggle
   lang_switch: { ar: "English", en: "عربي" },
 
+  // Footer
+  contact_me: { ar: "تواصل معي", en: "Contact me" },
+
   // Navigation
   nav_home: { ar: "الرئيسية", en: "Home" },
   nav_lists: { ar: "القوائم", en: "Lists" },

@@ -106,7 +106,7 @@ function LogoutButton() {
 }
 
 function ContactFooter() {
-  const { dir } = useI18n();
+  const { t, dir } = useI18n();
   const links = [
     {
       label: "LinkedIn",
@@ -145,7 +145,7 @@ function ContactFooter() {
     <footer className="mt-12 pt-8 pb-6 border-t" dir={dir}>
       <div className="flex flex-col items-center gap-6">
         <p className="text-base font-semibold text-muted-foreground tracking-wide">
-          تواصل معي
+          {t("contact_me")}
         </p>
         <div className="flex items-center gap-3 justify-center">
           {links.map(({ label, href, icon: Icon }) => (
