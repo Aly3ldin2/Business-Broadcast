@@ -29,6 +29,7 @@ import {
   AlertTriangle, Users, KeyboardIcon,
   Pencil, Check, X, PenLine, UploadCloud, Hash, Plus,
   ChevronDown, ChevronRight, ImageIcon, PartyPopper,
+  MessageCircle, Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CountryPicker } from "@/components/country-picker";
@@ -43,6 +44,37 @@ interface SendResult {
   phone: string;
   success: boolean;
   error?: string | null;
+}
+
+interface SyncedContact {
+  number: string;
+  name: string | null;
+}
+
+function getInitials(name: string | null | undefined, number: string): string {
+  if (name?.trim()) {
+    const parts = name.trim().split(" ");
+    return parts.length >= 2
+      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      : parts[0].slice(0, 2).toUpperCase();
+  }
+  return number.slice(-2);
+}
+
+const AVATAR_COLORS = [
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-violet-100 text-violet-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-orange-100 text-orange-700",
+  "bg-teal-100 text-teal-700",
+];
+function avatarColor(str: string) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 interface SendProgress {
@@ -304,9 +336,17 @@ export default function Campaign() {
   );
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneList, setPhoneList] = useState<string[]>([]);
+  const [phoneNames, setPhoneNames] = useState<Record<string, string>>({});
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState("");
+
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importContacts, setImportContacts] = useState<SyncedContact[] | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSearch, setImportSearch] = useState("");
+  const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
 
   const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
   const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
@@ -330,6 +370,80 @@ export default function Campaign() {
 
   function removePhone(num: string) {
     setPhoneList((prev) => prev.filter((p) => p !== num));
+    setPhoneNames((prev) => {
+      const { [num]: _removed, ...rest } = prev;
+      return rest;
+    });
+  }
+
+  async function openImport() {
+    setIsImportOpen(true);
+    setImportSearch("");
+    setImportSelected(new Set());
+    setImportError(null);
+    setImportLoading(true);
+    try {
+      const statusRes = await fetch(`${BASE}/api/baileys/status`, { credentials: "include" });
+      const status = await statusRes.json();
+      if (!status?.connected) {
+        setImportError(t("lists_import_wa_not_connected"));
+        setImportContacts(null);
+        return;
+      }
+      const res = await fetch(`${BASE}/api/baileys/contacts`, { credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setImportContacts(data.contacts ?? []);
+    } catch (e: unknown) {
+      setImportError((e as Error)?.message || t("lists_save_fail"));
+      setImportContacts(null);
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  const filteredImportContacts = (importContacts ?? []).filter((c) => {
+    if (!importSearch.trim()) return true;
+    const q = importSearch.trim().toLowerCase();
+    return c.number.includes(q) || (c.name?.toLowerCase().includes(q) ?? false);
+  });
+
+  function toggleImportSelected(number: string) {
+    setImportSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(number)) next.delete(number);
+      else next.add(number);
+      return next;
+    });
+  }
+
+  function toggleSelectAllImport() {
+    const filteredNumbers = filteredImportContacts.map((c) => c.number);
+    const allFilteredSelected =
+      filteredNumbers.length > 0 && filteredNumbers.every((n) => importSelected.has(n));
+    setImportSelected((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        for (const n of filteredNumbers) next.delete(n);
+      } else {
+        for (const n of filteredNumbers) next.add(n);
+      }
+      return next;
+    });
+  }
+
+  function addImportedToPhoneList() {
+    const toAdd = (importContacts ?? []).filter((c) => importSelected.has(c.number));
+    setPhoneList((prev) => {
+      const existing = new Set(prev);
+      return [...prev, ...toAdd.filter((c) => !existing.has(c.number)).map((c) => c.number)];
+    });
+    setPhoneNames((prev) => {
+      const next = { ...prev };
+      for (const c of toAdd) if (c.name) next[c.number] = c.name;
+      return next;
+    });
+    setIsImportOpen(false);
   }
 
   function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -814,6 +928,12 @@ export default function Campaign() {
                     >
                       <Hash className="h-3.5 w-3.5" />{t("campaign_bulk_paste")}
                     </button>
+                    <button
+                      onClick={() => void openImport()}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />{t("lists_import_wa_title")}
+                    </button>
                   </div>
                   <p className="text-xs text-muted-foreground">{t("campaign_or_paste")}</p>
                 </div>
@@ -856,18 +976,25 @@ export default function Campaign() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-medium text-muted-foreground">{t("campaign_contacts_count", { n: phoneList.length })}</p>
-                      <button onClick={() => setPhoneList([])} className="text-xs text-destructive hover:underline">{t("lists_clear_all")}</button>
+                      <button onClick={() => { setPhoneList([]); setPhoneNames({}); }} className="text-xs text-destructive hover:underline">{t("lists_clear_all")}</button>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {phoneList.map((num) => (
-                        <span key={num} className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-muted border text-xs font-mono" dir="ltr">
+                        <span key={num} className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-muted border text-xs" dir="ltr">
                           <button
                             onClick={() => removePhone(num)}
                             className="w-4 h-4 rounded-full bg-muted-foreground/20 hover:bg-destructive hover:text-white flex items-center justify-center transition-colors shrink-0"
                           >
                             <X className="h-2.5 w-2.5" />
                           </button>
-                          {num}
+                          {phoneNames[num] ? (
+                            <span className="flex items-center gap-1 font-sans">
+                              <span className="font-medium">{phoneNames[num]}</span>
+                              <span className="font-mono text-muted-foreground">({num})</span>
+                            </span>
+                          ) : (
+                            <span className="font-mono">{num}</span>
+                          )}
                         </span>
                       ))}
                     </div>
@@ -1233,6 +1360,118 @@ export default function Campaign() {
               <Button onClick={() => void handleSaveList()} disabled={!listName.trim() || saveMutation.isPending}>
                 {saveMutation.isPending ? <Loader2 className={`h-4 w-4 ${dir === "rtl" ? "ml-2" : "mr-2"} animate-spin`} /> : null}
                 {t("campaign_save")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Import from WhatsApp Dialog ── */}
+        <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+          <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto flex flex-col" dir={dir}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-emerald-600" />
+                {t("lists_import_wa_title")}
+              </DialogTitle>
+            </DialogHeader>
+
+            {importLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-10 justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("lists_import_wa_loading")}
+              </div>
+            )}
+
+            {!importLoading && importError && (
+              <div className="py-10 text-center text-sm text-destructive">{importError}</div>
+            )}
+
+            {!importLoading && !importError && importContacts && (
+              <div className="flex flex-col gap-3 min-h-0">
+                <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
+                  <div className="flex items-center px-3 border-r border-border text-muted-foreground">
+                    <Search className="h-3.5 w-3.5" />
+                  </div>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={importSearch}
+                    onChange={(e) => setImportSearch(e.target.value)}
+                    placeholder={t("lists_import_wa_search")}
+                    className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground/40 min-w-0"
+                  />
+                </div>
+
+                {importContacts.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    {t("lists_import_wa_empty")}
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-xs">
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllImport}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        {filteredImportContacts.length > 0 &&
+                        filteredImportContacts.every((c) => importSelected.has(c.number))
+                          ? t("lists_import_wa_deselect_all")
+                          : t("lists_import_wa_select_all")}
+                      </button>
+                      <span className="text-muted-foreground">
+                        {t("lists_import_wa_selected", { n: importSelected.size })}
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl border bg-muted/20 divide-y max-h-72 overflow-y-auto">
+                      {filteredImportContacts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-6">
+                          {t("lists_import_wa_no_results")}
+                        </p>
+                      ) : (
+                        filteredImportContacts.map((c) => {
+                          const checked = importSelected.has(c.number);
+                          const initials = getInitials(c.name, c.number);
+                          const color = avatarColor(c.number);
+                          return (
+                            <label
+                              key={c.number}
+                              className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleImportSelected(c.number)}
+                                className="h-4 w-4 rounded border-border accent-primary shrink-0"
+                              />
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${color}`}>
+                                {initials}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {c.name ? (
+                                  <>
+                                    <p className="text-sm font-medium truncate leading-tight">{c.name}</p>
+                                    <p className="text-xs text-muted-foreground font-mono" dir="ltr">{c.number}</p>
+                                  </>
+                                ) : (
+                                  <p className="text-sm font-mono text-muted-foreground" dir="ltr">{c.number}</p>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsImportOpen(false)}>{t("campaign_cancel")}</Button>
+              <Button onClick={addImportedToPhoneList} disabled={importSelected.size === 0}>
+                {t("lists_import_wa_add_btn", { n: importSelected.size })}
               </Button>
             </DialogFooter>
           </DialogContent>
