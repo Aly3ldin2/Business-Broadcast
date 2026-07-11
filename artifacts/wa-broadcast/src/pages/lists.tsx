@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryPicker } from "@/components/country-picker";
 import { findCountry, type Country } from "@/data/countries";
@@ -183,18 +183,22 @@ export default function Lists() {
   const [importSearch, setImportSearch] = useState("");
   const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
 
-  async function openImport() {
-    setIsImportOpen(true);
-    setImportSearch("");
-    setImportSelected(new Set());
-    setImportError(null);
-    setImportLoading(true);
+  // Refreshes the synced contact list. `silent` skips the loading spinner and
+  // error banner so periodic background refreshes (below) don't flicker the
+  // dialog while the user is browsing/searching it.
+  async function refreshImportContacts(silent = false) {
+    if (!silent) {
+      setImportError(null);
+      setImportLoading(true);
+    }
     try {
       const statusRes = await fetch(`${BASE}/api/baileys/status`, { credentials: "include" });
       const status = await statusRes.json();
       if (!status?.connected) {
-        setImportError(t("lists_import_wa_not_connected"));
-        setImportContacts(null);
+        if (!silent) {
+          setImportError(t("lists_import_wa_not_connected"));
+          setImportContacts(null);
+        }
         return;
       }
       const res = await fetch(`${BASE}/api/baileys/contacts`, { credentials: "include" });
@@ -202,12 +206,30 @@ export default function Lists() {
       const data = await res.json();
       setImportContacts(data.contacts ?? []);
     } catch (e: unknown) {
-      setImportError((e as Error)?.message || t("lists_save_fail"));
-      setImportContacts(null);
+      if (!silent) {
+        setImportError((e as Error)?.message || t("lists_save_fail"));
+        setImportContacts(null);
+      }
     } finally {
-      setImportLoading(false);
+      if (!silent) setImportLoading(false);
     }
   }
+
+  async function openImport() {
+    setIsImportOpen(true);
+    setImportSearch("");
+    setImportSelected(new Set());
+    await refreshImportContacts();
+  }
+
+  // Keep the list live while the dialog is open: WhatsApp contacts you add
+  // while browsing (or synced in the background) show up without needing to
+  // close and reopen the dialog.
+  useEffect(() => {
+    if (!isImportOpen) return;
+    const interval = setInterval(() => void refreshImportContacts(true), 5000);
+    return () => clearInterval(interval);
+  }, [isImportOpen]);
 
   const filteredImportContacts = (importContacts ?? []).filter((c) => {
     if (!importSearch.trim()) return true;
