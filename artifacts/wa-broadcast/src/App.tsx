@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Eye, EyeOff, MessageCircle,
-  Lock, User, Moon, Sun, Radio, ShieldCheck, Globe,
+  Lock, User, Moon, Sun, ShieldCheck, Globe,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@workspace/api-client-react";
@@ -134,12 +134,11 @@ function AuthShell({
 
         <div className="relative z-10 text-center space-y-8 max-w-md">
           <div className="flex justify-center">
-            <div
-              className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl"
-              style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.25)" }}
-            >
-              <Radio className="h-12 w-12 text-white" />
-            </div>
+            <img
+              src="/icons/icon-512.png"
+              alt="WhatsApp Broadcast"
+              className="w-24 h-24 rounded-3xl shadow-2xl"
+            />
           </div>
           <div className="space-y-3">
             <h1 className="text-4xl font-bold text-white leading-tight">WhatsApp<br />Broadcast</h1>

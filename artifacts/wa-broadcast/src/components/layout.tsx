@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Radio, Moon, Sun, LogOut, Globe, Linkedin, Github, Facebook } from "lucide-react";
+import { Send, Settings, Users, Menu, Moon, Sun, LogOut, Globe, Linkedin, Github, Facebook } from "lucide-react";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -39,9 +39,7 @@ function SiteLogo() {
   return (
     <Link href="/">
       <div className="flex items-center gap-2 cursor-pointer select-none group">
-        <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
-          <Radio className="h-4 w-4 text-primary-foreground" />
-        </div>
+        <img src="/icons/icon-512.png" alt="logo" className="w-7 h-7 rounded-md shrink-0" />
         <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors leading-tight">
           WhatsApp<br />Broadcast
         </span>
