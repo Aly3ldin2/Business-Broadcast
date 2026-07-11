@@ -4,7 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
-import { mkdir, rm } from "fs/promises";
+import { mkdir, rm, readFile, writeFile } from "fs/promises";
 import path from "path";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -50,6 +50,41 @@ export class BaileysService {
     return path.join(AUTH_BASE, this.userId);
   }
 
+  get contactsFile() {
+    return path.join(this.authDir, "contacts.json");
+  }
+
+  /**
+   * The in-memory contact map is wiped every time the Node process restarts,
+   * but WhatsApp only re-sends the full contact list ("messaging-history.set")
+   * once, right after pairing — a plain reconnect using saved credentials does
+   * NOT re-trigger it. Without persisting to disk, a server restart made
+   * contacts disappear until enough individual "contacts.update" events
+   * trickled back in from chat activity. Persist to disk and reload on start.
+   */
+  private async loadPersistedContacts() {
+    try {
+      const raw = await readFile(this.contactsFile, "utf-8");
+      const list = JSON.parse(raw) as SyncedContact[];
+      for (const c of list) this._contacts.set(c.number, c);
+    } catch {
+      // No persisted contacts yet — fine, they'll populate from sync events.
+    }
+  }
+
+  private _savePersistedContactsQueued = false;
+  private queueSavePersistedContacts() {
+    if (this._savePersistedContactsQueued) return;
+    this._savePersistedContactsQueued = true;
+    setTimeout(() => {
+      this._savePersistedContactsQueued = false;
+      const list = [...this._contacts.values()];
+      void writeFile(this.contactsFile, JSON.stringify(list), "utf-8").catch(() => {
+        /* best-effort persistence — in-memory copy still works for this run */
+      });
+    }, 1_000);
+  }
+
   async initialize() {
     if (this._initializing) return;
     this._initializing = true;
@@ -61,6 +96,7 @@ export class BaileysService {
 
     try {
       await mkdir(this.authDir, { recursive: true });
+      if (this._contacts.size === 0) await this.loadPersistedContacts();
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
 
       // Fetch WA version only once; reuse on all subsequent reconnects so we
@@ -178,6 +214,7 @@ export class BaileysService {
           const existing = this._contacts.get(number);
           this._contacts.set(number, { number, name: name ?? existing?.name ?? null });
         }
+        if (list.length) this.queueSavePersistedContacts();
       };
 
       sock.ev.on("messaging-history.set", ({ contacts }) => upsertContacts(contacts ?? []));
