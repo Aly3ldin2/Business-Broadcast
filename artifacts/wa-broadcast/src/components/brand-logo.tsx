@@ -1,6 +1,8 @@
-// WhatsApp-inspired broadcast logo:
-// Green rounded square + white speech-bubble + send arrow inside.
-// Expresses "mass messaging" while staying on WA's visual language.
+/**
+ * Broadcast signal icon:
+ * WhatsApp-green rounded square + white dot + three expanding arcs.
+ * Clean, minimal, readable at any size.
+ */
 
 export function BroadcastLogo({
   className,
@@ -13,53 +15,51 @@ export function BroadcastLogo({
     <svg
       width={size}
       height={size}
-      viewBox="0 0 48 48"
+      viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Background – WhatsApp green rounded square */}
-      <rect width="48" height="48" rx="13" fill="#25D366" />
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#2EE076" />
+          <stop offset="100%" stopColor="#075E54" />
+        </linearGradient>
+      </defs>
 
-      {/* Subtle top-left gloss */}
-      <ellipse cx="16" cy="12" rx="10" ry="6" fill="white" opacity="0.12" />
+      {/* Background */}
+      <rect width="64" height="64" rx="14" fill="url(#bg)" />
 
-      {/* White speech bubble with bottom-left tail (WA style) */}
-      <path
-        d="M9 8 C9 5.8 10.8 4 13 4 H35 C37.2 4 39 5.8 39 8 V26 C39 28.2 37.2 30 35 30 H22 L11 40 V30 H13 C10.8 30 9 28.2 9 26 Z"
-        fill="white"
-      />
+      {/* Dot — broadcast origin */}
+      <circle cx="16" cy="32" r="5" fill="white" />
 
-      {/* Broadcast icon inside bubble ─ paper-plane + two arcs */}
-      {/* Paper-plane body (dark green) */}
+      {/* Arc 1 — inner */}
       <path
-        d="M14 25 L30 11 L26 29 Z"
-        fill="#075E54"
-        opacity="0.9"
-      />
-      {/* Fold / wing detail */}
-      <path
-        d="M14 25 L20 21 L26 29 Z"
-        fill="#075E54"
-        opacity="0.5"
-      />
-
-      {/* Signal arcs – broadcast waves emanating right */}
-      <path
-        d="M27 15 Q32 18 27 23"
-        stroke="#128C7E"
-        strokeWidth="2"
+        d="M 23.1 24.9 A 10 10 0 0 1 23.1 39.1"
+        stroke="white"
+        strokeWidth="4"
         strokeLinecap="round"
         fill="none"
-        opacity="0.8"
       />
+
+      {/* Arc 2 — middle */}
       <path
-        d="M30 12 Q37 18 30 26"
-        stroke="#128C7E"
-        strokeWidth="2"
+        d="M 27.5 18.4 A 17 17 0 0 1 27.5 45.6"
+        stroke="white"
+        strokeWidth="4"
         strokeLinecap="round"
         fill="none"
-        opacity="0.5"
+        opacity="0.7"
+      />
+
+      {/* Arc 3 — outer */}
+      <path
+        d="M 31.1 12.1 A 24 24 0 0 1 31.1 51.9"
+        stroke="white"
+        strokeWidth="4"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.4"
       />
     </svg>
   );
