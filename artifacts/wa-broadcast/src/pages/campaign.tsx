@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { PageReveal } from "@/components/reveal";
+import { PageReveal, Reveal } from "@/components/reveal";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useLoadPhonesFromGist,
@@ -873,22 +873,27 @@ export default function Campaign() {
           onChange={handleFileInput}
         />
 
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("campaign_title")}</h1>
-          <p className="text-muted-foreground mt-1 text-sm">{t("campaign_subtitle")}</p>
-        </div>
+        <Reveal delay={0}>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{t("campaign_title")}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">{t("campaign_subtitle")}</p>
+          </div>
+        </Reveal>
 
         {!isConnected && (
-          <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div>
-              {t("campaign_wa_not_connected")}{" "}
-              <a href="/settings" className="underline font-medium">{t("campaign_wa_go_settings")}</a>
+          <Reveal delay={0.05}>
+            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                {t("campaign_wa_not_connected")}{" "}
+                <a href="/settings" className="underline font-medium">{t("campaign_wa_go_settings")}</a>
+              </div>
             </div>
-          </div>
+          </Reveal>
         )}
 
         {/* ─── Step 1: Phones ─── */}
+        <Reveal delay={0.1}>
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -1076,8 +1081,10 @@ export default function Campaign() {
             )}
           </CardContent>
         </Card>
+        </Reveal>
 
         {/* ─── Step 2: Message ─── */}
+        <Reveal delay={0.18}>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -1143,8 +1150,10 @@ export default function Campaign() {
             </div>
           </CardContent>
         </Card>
+        </Reveal>
 
         {/* ─── Step 3: Media ─── */}
+        <Reveal delay={0.26}>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -1229,9 +1238,11 @@ export default function Campaign() {
             )}
           </CardContent>
         </Card>
+        </Reveal>
 
         {/* ─── Send Results ─── */}
         {sendResults && (
+          <Reveal delay={0}>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -1255,9 +1266,11 @@ export default function Campaign() {
               </div>
             </CardContent>
           </Card>
+          </Reveal>
         )}
 
         {/* ─── Send Button ─── */}
+        <Reveal delay={0.32}>
         <div className="flex items-center justify-between gap-3 pb-4">
           <div className="text-xs text-muted-foreground">
             {phones.length > 0 ? (
@@ -1281,6 +1294,7 @@ export default function Campaign() {
             }
           </Button>
         </div>
+        </Reveal>
 
         {/* ─── Confirm Dialog ─── */}
         <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
