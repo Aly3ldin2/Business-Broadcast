@@ -11,9 +11,10 @@ import NotFound from "@/pages/not-found";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Loader2, Eye, EyeOff, MessageCircle,
+  Loader2, Eye, EyeOff,
   Lock, User, Moon, Sun, ShieldCheck, Globe,
 } from "lucide-react";
+import { BroadcastLogo } from "@/components/brand-logo";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@workspace/api-client-react";
 import { useI18n } from "@/lib/i18n";
@@ -134,11 +135,7 @@ function AuthShell({
 
         <div className="relative z-10 text-center space-y-8 max-w-md">
           <div className="flex justify-center">
-            <img
-              src="/icons/icon-512.png"
-              alt="WhatsApp Broadcast"
-              className="w-24 h-24 rounded-3xl shadow-2xl"
-            />
+            <BroadcastLogo size={96} className="rounded-3xl shadow-2xl" />
           </div>
           <div className="space-y-3">
             <h1 className="text-4xl font-bold text-white leading-tight">WhatsApp<br />Broadcast</h1>
@@ -159,9 +156,7 @@ function AuthShell({
       <div className="flex-1 flex flex-col">
         <div className="flex items-center justify-between px-4 sm:px-8 pt-5">
           <div className="flex lg:hidden items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <MessageCircle className="h-4 w-4 text-primary-foreground" fill="currentColor" />
-            </div>
+            <BroadcastLogo size={28} className="shrink-0" />
             <span className="text-sm font-bold text-foreground">WhatsApp Broadcast</span>
           </div>
           <div className="hidden lg:block" />
@@ -505,8 +500,8 @@ function LoginGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
+            <BroadcastLogo size={48} />
           </div>
           <p className="text-sm text-muted-foreground">{t("auth_loading")}</p>
         </div>

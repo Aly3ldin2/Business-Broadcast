@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { PageReveal } from "@/components/reveal";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useLoadPhonesFromGist,
@@ -862,7 +863,7 @@ export default function Campaign() {
         />
       )}
 
-      <div className="space-y-6 max-w-3xl mx-auto" dir={dir}>
+      <PageReveal className="space-y-6 max-w-3xl mx-auto" dir={dir}>
         <input
           ref={fileInputRef}
           type="file"
@@ -1469,7 +1470,7 @@ export default function Campaign() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageReveal>
     </>
   );
 }

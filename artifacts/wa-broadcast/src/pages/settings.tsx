@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { PageReveal, Reveal } from "@/components/reveal";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSettings,
@@ -179,14 +180,17 @@ export default function Settings() {
   }
 
   return (
+    <PageReveal>
     <div className="space-y-8 max-w-2xl" dir={dir}>
+      <Reveal>
       <div>
         <h1 className="text-3xl font-bold tracking-tight">{t("settings_title")}</h1>
         <p className="text-muted-foreground mt-1">{t("settings_subtitle")}</p>
       </div>
+      </Reveal>
 
       {/* WhatsApp Section */}
-      <Card>
+      <Reveal delay={0.08}><Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Smartphone className="h-4 w-4" />
@@ -313,10 +317,10 @@ export default function Settings() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card></Reveal>
 
       {/* Change Credentials */}
-      <Card>
+      <Reveal delay={0.14}><Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <KeyRound className="h-4 w-4" />
@@ -372,10 +376,10 @@ export default function Settings() {
             <p className="text-xs text-muted-foreground">{t("settings_credentials_hint")}</p>
           </form>
         </CardContent>
-      </Card>
+      </Card></Reveal>
 
       {/* GitHub Gist */}
-      <Card>
+      <Reveal delay={0.2}><Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Github className="h-4 w-4" />
@@ -452,7 +456,8 @@ export default function Settings() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card></Reveal>
     </div>
+    </PageReveal>
   );
 }

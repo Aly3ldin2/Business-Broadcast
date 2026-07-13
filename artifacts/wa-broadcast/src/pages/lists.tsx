@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { PageReveal, Reveal } from "@/components/reveal";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryPicker } from "@/components/country-picker";
 import { findCountry, type Country } from "@/data/countries";
@@ -333,9 +334,9 @@ export default function Lists() {
   const lists: PhoneList[] = gistData?.lists ?? [];
 
   return (
-    <div className="space-y-6 max-w-2xl" dir={dir}>
+    <PageReveal className="space-y-6 max-w-2xl" dir={dir}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <Reveal><div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("lists_title")}</h1>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -353,7 +354,7 @@ export default function Lists() {
             {t("lists_new")}
           </Button>
         )}
-      </div>
+      </div></Reveal>
 
       {/* No GitHub token */}
       {!settings?.hasGithubToken && (
@@ -803,6 +804,6 @@ export default function Lists() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageReveal>
   );
 }
