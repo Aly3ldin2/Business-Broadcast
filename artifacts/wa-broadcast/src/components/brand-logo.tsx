@@ -1,12 +1,23 @@
 /**
- * WhatsApp-style broadcast logo.
+ * WhatsApp Broadcast — App Icon
  *
- * Concept: the classic WA speech-bubble shape (rounded rect + bottom-left
- * tail) with a broadcast signal (dot + 3 expanding arcs) inside — combining
- * the "messaging" and "broadcast" metaphors in one mark.
+ * Visual language is a faithful translation of WhatsApp's own icon:
+ *   • WhatsApp-green rounded-square background  (#25D366)
+ *   • Large white speech-bubble (circle + bottom-left tail)
+ *   • Content carved INTO the white bubble using the same green,
+ *     exactly like WA's phone handset is "cut" from its bubble.
  *
- * Fix: gradient IDs are scoped per-instance via useId() to avoid collisions
- * when multiple logos appear on the same page.
+ * Content: a broadcast / WiFi-style signal (dot + 3 arcs opening
+ * upward) — the universally-understood "broadcast to many" symbol.
+ *
+ * Geometry notes:
+ *   Bubble circle  : cx=33  cy=25  r=21
+ *   Tail vertices  : (14,34) → (7,57) → (22,43)  — all on / near circle edge
+ *   Signal center  : (33,35)  — lower-center of bubble
+ *   Arc sweeps     : 90° each, clockwise, short-arc (large-arc=0 sweep=1)
+ *
+ * Fix: gradient IDs are instance-scoped via useId() to avoid SVG
+ * ID collisions when multiple logos appear on the same page.
  */
 import { useId } from "react";
 
@@ -18,6 +29,7 @@ export function BroadcastLogo({
   size?: number;
 }) {
   const uid = useId().replace(/:/g, "");
+  const gradId = `wa-grad-${uid}`;
 
   return (
     <svg
@@ -31,63 +43,63 @@ export function BroadcastLogo({
     >
       <defs>
         <linearGradient
-          id={`bg-${uid}`}
+          id={gradId}
           x1="0" y1="0" x2="64" y2="64"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%"   stopColor="#2EE076" />
-          <stop offset="100%" stopColor="#20C65A" />
+          <stop offset="0%"   stopColor="#2ECC71" />
+          <stop offset="100%" stopColor="#25D366" />
         </linearGradient>
       </defs>
 
-      {/* WhatsApp-green rounded square */}
-      <rect width="64" height="64" rx="14" fill={`url(#bg-${uid})`} />
+      {/* ── WhatsApp-green rounded square ── */}
+      <rect width="64" height="64" rx="14" fill={`url(#${gradId})`} />
 
-      {/*
-        Speech bubble — WhatsApp style:
-        rounded rect (7,6)→(57,44) with a triangular tail at bottom-left
-        pointing to (5,58). All corners r=7.
-      */}
+      {/* ── Speech bubble — WhatsApp-style ──
+           Large white circle + triangular tail at bottom-left.
+           Tail vertices are on / near the circle edge so the join is seamless. */}
+      <circle cx="33" cy="25" r="21" fill="white" />
+      <polygon points="14,34 7,57 22,43" fill="white" />
+
+      {/* ── Broadcast signal carved into the bubble ──
+           Color matches the green background → creates the same
+           "cut-out" effect WhatsApp uses for its phone handset.
+
+           All three arcs are concentric around (33,35) — the dot.
+           Each spans 90° (225° → 315° clockwise) = upward-opening arc.
+
+           Arc 1  r=7    endpoints (28,30)  →  (38,30)
+           Arc 2  r=12   endpoints (24.5,26.5) → (41.5,26.5)
+           Arc 3  r=17   endpoints (21,23)  →  (45,23)          */}
+
+      {/* Origin dot */}
+      <circle cx="33" cy="35" r="3" fill="#25D366" />
+
+      {/* Arc 1 — innermost */}
       <path
-        d="M 14 6 H 50 Q 57 6 57 13 V 37 Q 57 44 50 44 H 20 L 5 58 L 15 44 H 14 Q 7 44 7 37 V 13 Q 7 6 14 6 Z"
-        fill="white"
-      />
-
-      {/*
-        Broadcast signal — virtual source at (18, 25):
-        • filled dot (the origin)
-        • 3 concentric arcs opening rightward, all centred ≈ (18, 25)
-        Colour: WA dark-green #075E54 for contrast on white.
-      */}
-      <circle cx="18" cy="25" r="3" fill="#075E54" />
-
-      {/* Arc 1 — r=8, spread ±50° */}
-      <path
-        d="M 23.1 18.9 A 8 8 0 0 1 23.1 31.1"
-        stroke="#075E54"
+        d="M 28 30 A 7 7 0 0 1 38 30"
+        stroke="#25D366"
         strokeWidth="3.5"
         strokeLinecap="round"
         fill="none"
       />
 
-      {/* Arc 2 — r=13.5, spread ±55° */}
+      {/* Arc 2 — middle */}
       <path
-        d="M 25.7 13.9 A 13.5 13.5 0 0 1 25.7 36.1"
-        stroke="#075E54"
+        d="M 24.5 26.5 A 12 12 0 0 1 41.5 26.5"
+        stroke="#25D366"
         strokeWidth="3"
         strokeLinecap="round"
         fill="none"
-        opacity="0.65"
       />
 
-      {/* Arc 3 — r=19, spread ±52° */}
+      {/* Arc 3 — outermost */}
       <path
-        d="M 29.7 10.0 A 19 19 0 0 1 29.7 40.0"
-        stroke="#075E54"
+        d="M 21 23 A 17 17 0 0 1 45 23"
+        stroke="#25D366"
         strokeWidth="2.5"
         strokeLinecap="round"
         fill="none"
-        opacity="0.35"
       />
     </svg>
   );

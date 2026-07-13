@@ -1,16 +1,16 @@
 /**
- * Generates all PWA / favicon PNG files from the SVG icon.
+ * Generates all PWA / favicon PNGs from the SVG icon.
  * Run: node artifacts/wa-broadcast/scripts/gen-icons.mjs
  *
- * Keep the SVG geometry here in sync with brand-logo.tsx.
- * (No React / useId needed — static IDs are fine for standalone files.)
+ * Keep geometry in sync with brand-logo.tsx.
+ * Static IDs are fine here — each file is a standalone SVG document.
  */
 import { Resvg } from "@resvg/resvg-js";
 import { writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
-const __dir   = dirname(fileURLToPath(import.meta.url));
+const __dir    = dirname(fileURLToPath(import.meta.url));
 const iconsDir = resolve(__dir, "../public/icons");
 
 function buildSvg(size) {
@@ -18,32 +18,28 @@ function buildSvg(size) {
 <svg width="${size}" height="${size}" viewBox="0 0 64 64"
      fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64"
+    <linearGradient id="g" x1="0" y1="0" x2="64" y2="64"
                     gradientUnits="userSpaceOnUse">
-      <stop offset="0%"   stop-color="#2EE076"/>
-      <stop offset="100%" stop-color="#20C65A"/>
+      <stop offset="0%"   stop-color="#2ECC71"/>
+      <stop offset="100%" stop-color="#25D366"/>
     </linearGradient>
   </defs>
 
-  <!-- Background -->
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Green rounded square -->
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
 
-  <!-- WhatsApp-style speech bubble with bottom-left tail -->
-  <path d="M 14 6 H 50 Q 57 6 57 13 V 37 Q 57 44 50 44
-           H 20 L 5 58 L 15 44 H 14 Q 7 44 7 37 V 13 Q 7 6 14 6 Z"
-        fill="white"/>
+  <!-- White speech bubble: circle + WA-style tail -->
+  <circle cx="33" cy="25" r="21" fill="white"/>
+  <polygon points="14,34 7,57 22,43" fill="white"/>
 
-  <!-- Broadcast signal: dot + 3 arcs (WA dark-green) -->
-  <circle cx="18" cy="25" r="3" fill="#075E54"/>
-
-  <path d="M 23.1 18.9 A 8 8 0 0 1 23.1 31.1"
-        stroke="#075E54" stroke-width="3.5" stroke-linecap="round" fill="none"/>
-
-  <path d="M 25.7 13.9 A 13.5 13.5 0 0 1 25.7 36.1"
-        stroke="#075E54" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.65"/>
-
-  <path d="M 29.7 10.0 A 19 19 0 0 1 29.7 40.0"
-        stroke="#075E54" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <!-- Broadcast signal (carved in green = WA's cut-out technique) -->
+  <circle cx="33" cy="35" r="3" fill="#25D366"/>
+  <path d="M 28 30 A 7 7 0 0 1 38 30"
+        stroke="#25D366" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M 24.5 26.5 A 12 12 0 0 1 41.5 26.5"
+        stroke="#25D366" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M 21 23 A 17 17 0 0 1 45 23"
+        stroke="#25D366" stroke-width="2.5" stroke-linecap="round" fill="none"/>
 </svg>`.trim();
 }
 
