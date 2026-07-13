@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { PageReveal, Reveal } from "@/components/reveal";
+import { BroadcastLogo } from "@/components/brand-logo";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryPicker } from "@/components/country-picker";
 import { findCountry, type Country } from "@/data/countries";
@@ -337,16 +338,19 @@ export default function Lists() {
     <PageReveal className="space-y-6 max-w-2xl" dir={dir}>
       {/* Header */}
       <Reveal><div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("lists_title")}</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {lists.length > 0
-              ? t("lists_subtitle_plural", {
-                  l: lists.length,
-                  c: lists.reduce((s, l) => s + l.phones.length, 0),
-                })
-              : t("lists_subtitle_empty")}
-          </p>
+        <div className="flex items-center gap-3">
+          <BroadcastLogo size={36} className="shrink-0" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{t("lists_title")}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {lists.length > 0
+                ? t("lists_subtitle_plural", {
+                    l: lists.length,
+                    c: lists.reduce((s, l) => s + l.phones.length, 0),
+                  })
+                : t("lists_subtitle_empty")}
+            </p>
+          </div>
         </div>
         {settings?.hasGithubToken && (
           <Button onClick={openCreate} className="shrink-0">

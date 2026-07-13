@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { PageReveal, Reveal } from "@/components/reveal";
+import { BroadcastLogo } from "@/components/brand-logo";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSettings,
@@ -183,9 +184,12 @@ export default function Settings() {
     <PageReveal>
     <div className="space-y-8 max-w-2xl" dir={dir}>
       <Reveal>
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{t("settings_title")}</h1>
-        <p className="text-muted-foreground mt-1">{t("settings_subtitle")}</p>
+      <div className="flex items-center gap-3">
+        <BroadcastLogo size={36} className="shrink-0" />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{t("settings_title")}</h1>
+          <p className="text-muted-foreground mt-1">{t("settings_subtitle")}</p>
+        </div>
       </div>
       </Reveal>
 
