@@ -1,27 +1,20 @@
 /**
  * WhatsApp Broadcast — App Icon
  *
- * Visual language mirrors WhatsApp's own icon:
- *   • Rounded-square background with a rich 3-stop diagonal gradient
- *     (#0D3D36 deep teal → #128C7E WA teal → #25D366 WA bright green)
- *   • Subtle top-right radial highlight for the "glassy" depth found on
- *     premium app icons
- *   • Large white circular speech bubble + bottom-left triangular tail
- *     (identical construction to WhatsApp's own logo shape)
- *   • Broadcast signal inside: origin dot + 3 concentric upward arcs,
- *     rendered in WA's dark green — the same "carved from white" technique
- *     WhatsApp uses for its phone handset
+ * Concept: megaphone (broadcast) on a WhatsApp-green rounded square.
+ * The megaphone is universally understood as "broadcast / announce to many"
+ * and reads clearly at every size from 16 px up.
  *
- * Geometry reference:
- *   Bubble circle  : cx=32  cy=25  r=21
- *   Tail vertices  : (13,34) (6,57) (21,43) — all on the circle edge
- *   Signal origin  : (32,36)
- *   Arc 1          : r=7    → M 27 31 A 7 7 0 0 1 37 31
- *   Arc 2          : r=12   → M 23.5 27.5 A 12 12 0 0 1 40.5 27.5
- *   Arc 3          : r=17   → M 20 24 A 17 17 0 0 1 44 24
+ * Geometry (viewBox 64 × 64):
+ *   Body  : rect  x=9  y=26  w=13  h=12   (the box part of the megaphone)
+ *   Horn  : polygon 22,26 → 22,38 → 36,48 → 36,16   (opens right)
+ *   Handle: rounded rect  x=9  y=38  w=8   h=14  rx=4  (grip below body)
+ *   Arcs  : three concentric right-facing arcs from the horn mouth
  *
- * ID fix: gradient IDs are scoped per-instance via React's useId() to
- * prevent SVG ID collisions when multiple logos appear on the same page.
+ * Color scheme:
+ *   Background  : 3-stop linear gradient  #0D3D36 → #128C7E → #25D366
+ *   Megaphone   : white  (pops on any part of the gradient)
+ *   Arc opacity : 1 → 0.65 → 0.38  (natural signal fade)
  */
 import { useId } from "react";
 
@@ -47,16 +40,16 @@ export function BroadcastLogo({
       aria-hidden="true"
     >
       <defs>
-        {/* 3-stop diagonal gradient — WhatsApp's full colour range */}
+        {/* 3-stop diagonal gradient — WA's full colour range */}
         <linearGradient id={gId} x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#0D3D36" />
           <stop offset="50%"  stopColor="#128C7E" />
           <stop offset="100%" stopColor="#25D366" />
         </linearGradient>
 
-        {/* Top-right radial highlight — premium "glassy" depth */}
-        <radialGradient id={shId} cx="72%" cy="18%" r="52%">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.22" />
+        {/* Top-right radial highlight — premium glassy depth */}
+        <radialGradient id={shId} cx="75%" cy="15%" r="50%">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.18" />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0"    />
         </radialGradient>
       </defs>
@@ -65,45 +58,51 @@ export function BroadcastLogo({
       <rect width="64" height="64" rx="14" fill={`url(#${gId})`}  />
       <rect width="64" height="64" rx="14" fill={`url(#${shId})`} />
 
-      {/* ── Speech bubble ──
-           Large white circle (r=21, centred at 32,25) plus a triangular tail
-           at the bottom-left — exact same construction as the WhatsApp logo. */}
-      <circle cx="32" cy="25" r="21" fill="white" />
-      <polygon points="13,34 6,57 21,43" fill="white" />
+      {/* ══════════════════════════════════════════════
+          MEGAPHONE
+      ══════════════════════════════════════════════ */}
 
-      {/* ── Broadcast signal ──
-           All elements share the virtual centre (32,36) = the origin dot.
-           The three arcs are ±45° upward sections of concentric circles,
-           identical to a WiFi / broadcast symbol oriented upward.
-           Colour: WA dark green #075E54 on the white bubble surface.
-           Opacity fades outward: 1 → 0.65 → 0.35 for a natural signal feel. */}
+      {/* Body — the rectangular back of the megaphone */}
+      <rect x="8" y="26" width="14" height="12" rx="2" fill="white" />
 
-      {/* Origin dot */}
-      <circle cx="32" cy="36" r="3" fill="#075E54" />
+      {/* Horn — opens to the right */}
+      <polygon
+        points="22,26 22,38 38,50 38,14"
+        fill="white"
+      />
 
-      {/* Arc 1 — r = 7 */}
+      {/* Handle — grip below body */}
+      <rect x="9" y="38" width="9" height="13" rx="4.5" fill="white" />
+
+      {/* ══════════════════════════════════════════════
+          SOUND WAVES — three concentric arcs to the right
+          Centre of the horn mouth: (38, 32)
+      ══════════════════════════════════════════════ */}
+
+      {/* Arc 1 — close, bold */}
       <path
-        d="M 27 31 A 7 7 0 0 1 37 31"
-        stroke="#075E54"
+        d="M 42 24 A 8 8 0 0 1 42 40"
+        stroke="white"
         strokeWidth="3.5"
         strokeLinecap="round"
         fill="none"
+        opacity="1"
       />
 
-      {/* Arc 2 — r = 12 */}
+      {/* Arc 2 — medium */}
       <path
-        d="M 23.5 27.5 A 12 12 0 0 1 40.5 27.5"
-        stroke="#075E54"
+        d="M 46 20 A 12 12 0 0 1 46 44"
+        stroke="white"
         strokeWidth="3"
         strokeLinecap="round"
         fill="none"
         opacity="0.65"
       />
 
-      {/* Arc 3 — r = 17 */}
+      {/* Arc 3 — far, subtle */}
       <path
-        d="M 20 24 A 17 17 0 0 1 44 24"
-        stroke="#075E54"
+        d="M 50 16 A 16 16 0 0 1 50 48"
+        stroke="white"
         strokeWidth="2.5"
         strokeLinecap="round"
         fill="none"
