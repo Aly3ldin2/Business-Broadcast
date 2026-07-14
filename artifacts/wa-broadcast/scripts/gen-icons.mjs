@@ -18,8 +18,7 @@ function buildSvg(size) {
      fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0%"   stop-color="#0D3D36"/>
-      <stop offset="50%"  stop-color="#128C7E"/>
+      <stop offset="0%"   stop-color="#128C7E"/>
       <stop offset="100%" stop-color="#25D366"/>
     </linearGradient>
     <radialGradient id="s" cx="75%" cy="15%" r="50%">
@@ -32,22 +31,18 @@ function buildSvg(size) {
   <rect width="64" height="64" rx="14" fill="url(#g)"/>
   <rect width="64" height="64" rx="14" fill="url(#s)"/>
 
-  <!-- Megaphone body -->
-  <rect x="8" y="26" width="14" height="12" rx="2" fill="white"/>
-
-  <!-- Horn — opens right -->
-  <polygon points="22,26 22,38 38,50 38,14" fill="white"/>
-
-  <!-- Handle -->
-  <rect x="9" y="38" width="9" height="13" rx="4.5" fill="white"/>
-
-  <!-- Sound wave arcs -->
-  <path d="M 42 24 A 8 8 0 0 1 42 40"
-        stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none" opacity="1"/>
-  <path d="M 46 20 A 12 12 0 0 1 46 44"
-        stroke="white" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.65"/>
-  <path d="M 50 16 A 16 16 0 0 1 50 48"
-        stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <!-- Megaphone scaled to 78% around centre -->
+  <g transform="translate(32,32) scale(0.78) translate(-32,-32)">
+    <rect x="8" y="26" width="14" height="12" rx="2.5" fill="white"/>
+    <polygon points="22,26 22,38 38,50 38,14" fill="white"/>
+    <rect x="9" y="38" width="9" height="13" rx="4.5" fill="white"/>
+    <path d="M 42 24 A 8 8 0 0 1 42 40"
+          stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none" opacity="1"/>
+    <path d="M 46 20 A 12 12 0 0 1 46 44"
+          stroke="white" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.65"/>
+    <path d="M 50 16 A 16 16 0 0 1 50 48"
+          stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.38"/>
+  </g>
 </svg>`.trim();
 }
 
