@@ -1,4 +1,13 @@
 @import "tailwindcss";
+
+/* Splash screen — icon breathing animation */
+@keyframes splash-breathe {
+  0%, 100% { transform: scale(1);    opacity: 1;    }
+  50%       { transform: scale(1.07); opacity: 0.92; }
+}
+.splash-breathe {
+  animation: splash-breathe 2.6s ease-in-out infinite;
+}
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
