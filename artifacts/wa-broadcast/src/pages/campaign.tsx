@@ -344,7 +344,7 @@ export default function Campaign() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importContacts, setImportContacts] = useState<SyncedContact[] | null>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
+  const [importOffline, setImportOffline] = useState(false);
   const [importSearch, setImportSearch] = useState("");
   const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
 
@@ -376,52 +376,68 @@ export default function Campaign() {
     });
   }
 
-  // Refreshes the synced contact list. `silent` skips the loading spinner and
-  // error banner so periodic background refreshes (below) don't flicker the
-  // dialog while the user is browsing/searching it.
-  async function refreshImportContacts(silent = false) {
-    if (!silent) {
-      setImportError(null);
-      setImportLoading(true);
-    }
-    try {
-      const statusRes = await fetch(`${BASE}/api/baileys/status`, { credentials: "include" });
-      const status = await statusRes.json();
-      if (!status?.connected) {
-        if (!silent) {
-          setImportError(t("lists_import_wa_not_connected"));
-          setImportContacts(null);
-        }
-        return;
-      }
-      const res = await fetch(`${BASE}/api/baileys/contacts`, { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setImportContacts(data.contacts ?? []);
-    } catch (e: unknown) {
-      if (!silent) {
-        setImportError((e as Error)?.message || t("lists_save_fail"));
-        setImportContacts(null);
-      }
-    } finally {
-      if (!silent) setImportLoading(false);
-    }
-  }
-
   async function openImport() {
     setIsImportOpen(true);
     setImportSearch("");
     setImportSelected(new Set());
-    await refreshImportContacts();
+    setImportLoading(true);
+    setImportOffline(false);
+    try {
+      // Check connection status — for the offline badge only.
+      // Contacts always load from cache even when WhatsApp is reconnecting.
+      const statusRes = await fetch(`${BASE}/api/baileys/status`, { credentials: "include" });
+      const status = (await statusRes.json()) as { connected?: boolean };
+      setImportOffline(!status?.connected);
+    } catch {
+      setImportOffline(true);
+    } finally {
+      setImportLoading(false);
+    }
   }
 
-  // Keep the list live while the dialog is open: WhatsApp contacts you add
-  // while browsing (or synced in the background) show up without needing to
-  // close and reopen the dialog.
+  // SSE-based live contact sync — open while the dialog is visible.
+  // The server pushes the full contact list immediately on connect (from the
+  // persisted contacts.json cache) and again on every contacts.upsert/update.
+  // Falls back to 5-second polling if the SSE stream drops.
   useEffect(() => {
     if (!isImportOpen) return;
-    const interval = setInterval(() => void refreshImportContacts(true), 5000);
-    return () => clearInterval(interval);
+
+    let es: EventSource | null = null;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+    function fetchContacts() {
+      fetch(`${BASE}/api/baileys/contacts`, { credentials: "include" })
+        .then((r) => r.json() as Promise<{ contacts?: SyncedContact[] }>)
+        .then((d) => setImportContacts(d.contacts ?? []))
+        .catch(() => { /* keep whatever was already displayed */ });
+    }
+
+    function startSSE() {
+      es = new EventSource(`${BASE}/api/baileys/contacts/stream`, { withCredentials: true });
+
+      es.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data as string) as { contacts: SyncedContact[] };
+          setImportContacts(d.contacts);
+        } catch { /* ignore malformed frames */ }
+      };
+
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        if (!fallbackInterval) {
+          fetchContacts();
+          fallbackInterval = setInterval(fetchContacts, 5_000);
+        }
+      };
+    }
+
+    startSSE();
+
+    return () => {
+      es?.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
   }, [isImportOpen]);
 
   const filteredImportContacts = (importContacts ?? []).filter((c) => {
@@ -1394,11 +1410,15 @@ export default function Campaign() {
               </div>
             )}
 
-            {!importLoading && importError && (
-              <div className="py-10 text-center text-sm text-destructive">{importError}</div>
+            {/* Offline banner — shown but contacts still display from cache */}
+            {!importLoading && importOffline && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+                <span className="shrink-0">⚠️</span>
+                <span>{t("lists_import_wa_not_connected")}</span>
+              </div>
             )}
 
-            {!importLoading && !importError && importContacts && (
+            {!importLoading && importContacts && (
               <div className="flex flex-col gap-3 min-h-0">
                 <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
                   <div className="flex items-center px-3 border-r border-border text-muted-foreground">
