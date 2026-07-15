@@ -210,9 +210,15 @@ export class BaileysService {
           // themselves (e.g. shown in chats/groups) and is present even for
           // numbers the user never saved — using it as a fallback was why
           // unsaved numbers kept showing up with a "name".
-          const name = c.name ?? null;
+          //
+          // Distinguish undefined (field absent → keep existing) from null/""
+          // (explicit clear from WhatsApp → contact was unsaved, wipe the name).
           const existing = this._contacts.get(number);
-          this._contacts.set(number, { number, name: name ?? existing?.name ?? null });
+          const name =
+            c.name !== undefined
+              ? (c.name?.trim() || null) // explicit value: use it (null if empty)
+              : (existing?.name ?? null); // field absent: keep what we have
+          this._contacts.set(number, { number, name });
         }
         if (list.length) this.queueSavePersistedContacts();
       };
