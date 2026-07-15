@@ -185,42 +185,48 @@ export default function Lists() {
   const [importSearch, setImportSearch] = useState("");
   const [importSelected, setImportSelected] = useState<Set<string>>(new Set());
 
-  async function openImport() {
+  function openImport() {
     setIsImportOpen(true);
     setImportSearch("");
     setImportSelected(new Set());
-    setImportLoading(true);
+    setImportContacts(null);
+    setImportLoading(true); // stays true until SSE/fallback delivers first data
     setImportOffline(false);
-    try {
-      // Check connection status — for the offline badge only.
-      // Contacts always load from cache even when WhatsApp is reconnecting.
-      const statusRes = await fetch(`${BASE}/api/baileys/status`, { credentials: "include" });
-      const status = (await statusRes.json()) as { connected?: boolean };
-      setImportOffline(!status?.connected);
-    } catch {
-      setImportOffline(true);
-    } finally {
-      setImportLoading(false);
-    }
+    // Connection status check (offline badge only) — runs in background,
+    // does NOT gate contact loading.
+    fetch(`${BASE}/api/baileys/status`, { credentials: "include" })
+      .then((r) => r.json() as Promise<{ connected?: boolean }>)
+      .then((s) => setImportOffline(!s?.connected))
+      .catch(() => setImportOffline(true));
   }
 
-  // SSE-based live contact sync — open while the dialog is visible.
-  // The server pushes the full contact list immediately on connect (from the
-  // persisted contacts.json cache) and again whenever Baileys receives a
-  // contacts.upsert / contacts.update event, so newly saved contacts appear
-  // in real time without any polling lag.
-  // Falls back to 5-second polling if the SSE stream drops.
+  // SSE-based live contact sync while the dialog is open.
+  // The server sends the full list immediately on connect (from contacts.json
+  // cache), then again on every contacts.upsert / contacts.update Baileys
+  // event — so newly saved contacts appear in real time without polling lag.
+  // Falls back to a REST fetch + 5-second poll if SSE fails.
   useEffect(() => {
     if (!isImportOpen) return;
 
     let es: EventSource | null = null;
     let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+    let firstData = false;
+
+    function onData(contacts: SyncedContact[]) {
+      setImportContacts(contacts);
+      if (!firstData) {
+        firstData = true;
+        setImportLoading(false); // hide spinner on first delivery
+      }
+    }
 
     function fetchContacts() {
       fetch(`${BASE}/api/baileys/contacts`, { credentials: "include" })
         .then((r) => r.json() as Promise<{ contacts?: SyncedContact[] }>)
-        .then((d) => setImportContacts(d.contacts ?? []))
-        .catch(() => { /* keep whatever was already displayed */ });
+        .then((d) => onData(d.contacts ?? []))
+        .catch(() => {
+          if (!firstData) { setImportLoading(false); setImportContacts([]); }
+        });
     }
 
     function startSSE() {
@@ -229,14 +235,14 @@ export default function Lists() {
       es.onmessage = (e) => {
         try {
           const d = JSON.parse(e.data as string) as { contacts: SyncedContact[] };
-          setImportContacts(d.contacts);
+          onData(d.contacts);
         } catch { /* ignore malformed frames */ }
       };
 
       es.onerror = () => {
         es?.close();
         es = null;
-        // SSE unavailable — fall back to polling every 5 s
+        // SSE unavailable — fall back to REST polling
         if (!fallbackInterval) {
           fetchContacts();
           fallbackInterval = setInterval(fetchContacts, 5_000);
@@ -710,15 +716,30 @@ export default function Lists() {
             </div>
           )}
 
-          {/* Offline banner — shown but contacts still display from cache */}
-          {!importLoading && importOffline && (
+          {/* Offline + empty → show a clear "connect first" call-to-action */}
+          {!importLoading && importOffline && importContacts !== null && importContacts.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium">{t("lists_import_wa_not_connected")}</p>
+              <a
+                href="/settings"
+                onClick={() => setIsImportOpen(false)}
+                className="text-xs text-primary underline underline-offset-2"
+              >
+                {t("nav_settings")} →
+              </a>
+            </div>
+          )}
+
+          {/* Offline banner — shown alongside contacts when cache exists */}
+          {!importLoading && importOffline && importContacts !== null && importContacts.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
               <span className="shrink-0">⚠️</span>
               <span>{t("lists_import_wa_not_connected")}</span>
             </div>
           )}
 
-          {!importLoading && importContacts && (
+          {!importLoading && importContacts !== null && importContacts.length > 0 && (
             <div className="flex flex-col gap-3 min-h-0">
               <div className="flex rounded-xl border-2 border-border focus-within:border-primary transition-colors overflow-hidden bg-background">
                 <div className="flex items-center px-3 border-r border-border text-muted-foreground">

@@ -233,7 +233,9 @@ export class BaileysService {
           name?: string | null;
           notify?: string | null;
         }[],
+        source: string,
       ) => {
+        let added = 0, cleared = 0, skipped = 0;
         for (const c of list) {
           // Baileys v7 contacts may report `id` as either a PN JID
           // (@s.whatsapp.net) or an LID (@lid) — LID-based contacts carry
@@ -241,9 +243,9 @@ export class BaileysService {
           // this fallback, LID-only contacts were silently dropped.
           const pnSource =
             (c.id?.endsWith("@s.whatsapp.net") ? c.id : undefined) ?? c.phoneNumber;
-          if (!pnSource) continue;
+          if (!pnSource) { skipped++; continue; }
           const number = pnSource.replace("@s.whatsapp.net", "").replace(/\D/g, "");
-          if (!number) continue;
+          if (!number) { skipped++; continue; }
           // Only `name` reflects a name actually saved in the user's phone
           // contacts. `notify` is the pushName the *other* person chose for
           // themselves (e.g. shown in chats/groups) and is present even for
@@ -258,16 +260,21 @@ export class BaileysService {
               ? (c.name?.trim() || null) // explicit value: use it (null if empty)
               : (existing?.name ?? null); // field absent: keep what we have
           this._contacts.set(number, { number, name });
+          if (name) added++; else cleared++;
         }
+        // Diagnostic log — remove once contacts behavior is confirmed correct
+        console.log(
+          `[contacts] ${source}: total=${list.length} withName=${added} noName=${cleared} skipped=${skipped} | mapSize=${this._contacts.size} | namedInMap=${[...this._contacts.values()].filter(x=>x.name).length}`,
+        );
         if (list.length) {
           this.queueSavePersistedContacts();
           this._notifyContactListeners();
         }
       };
 
-      sock.ev.on("messaging-history.set", ({ contacts }) => upsertContacts(contacts ?? []));
-      sock.ev.on("contacts.upsert", (contacts) => upsertContacts(contacts));
-      sock.ev.on("contacts.update", (updates) => upsertContacts(updates));
+      sock.ev.on("messaging-history.set", ({ contacts }) => upsertContacts(contacts ?? [], "history.set"));
+      sock.ev.on("contacts.upsert", (contacts) => upsertContacts(contacts, "contacts.upsert"));
+      sock.ev.on("contacts.update", (updates) => upsertContacts(updates, "contacts.update"));
     } catch {
       this._initializing = false;
       this._socketReady = false;

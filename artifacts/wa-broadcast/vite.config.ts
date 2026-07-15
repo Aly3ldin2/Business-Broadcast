@@ -52,6 +52,19 @@ export default defineConfig({
       strict: true,
     },
     proxy: {
+      // SSE stream endpoint — must not be buffered
+      "/api/baileys/contacts/stream": {
+        target: `http://localhost:${API_PORT}`,
+        changeOrigin: true,
+        secure: false,
+        headers: { Connection: "keep-alive" },
+        // Disable response buffering so SSE frames reach the browser immediately
+        configure: (proxy) => {
+          proxy.on("proxyRes", (proxyRes) => {
+            proxyRes.headers["x-accel-buffering"] = "no";
+          });
+        },
+      },
       "/api": {
         target: `http://localhost:${API_PORT}`,
         changeOrigin: true,
