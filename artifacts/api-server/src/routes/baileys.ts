@@ -24,6 +24,40 @@ router.get("/contacts", (req, res) => {
   return res.json({ contacts });
 });
 
+/**
+ * SSE stream that pushes the contact list every time it changes.
+ * The client receives a `data:` event immediately on connect (current state)
+ * and again whenever Baileys fires contacts.upsert / contacts.update.
+ */
+router.get("/contacts/stream", (req, res) => {
+  const userId = getUserId(req);
+  const svc = baileysServiceManager.get(userId);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const send = () => {
+    const contacts = svc.getContacts();
+    res.write(`data: ${JSON.stringify({ contacts })}\n\n`);
+  };
+
+  // Send current snapshot immediately so the dialog populates without waiting
+  send();
+
+  // Push every subsequent change
+  const unsub = svc.subscribeContacts(send);
+
+  // Heartbeat keeps the connection alive through proxies / load-balancers
+  const hb = setInterval(() => res.write(": heartbeat\n\n"), 25_000);
+
+  req.on("close", () => {
+    unsub();
+    clearInterval(hb);
+  });
+});
+
 router.post("/pair", async (req, res) => {
   const userId = getUserId(req);
   const { phone } = req.body as { phone?: string };

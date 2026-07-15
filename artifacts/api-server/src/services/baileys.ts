@@ -44,6 +44,24 @@ export class BaileysService {
    */
   private _waVersion: [number, number, number] | undefined;
 
+  /** Callbacks subscribed to contact-book changes (for SSE push) */
+  private _contactListeners = new Set<() => void>();
+
+  /**
+   * Subscribe to contact-book changes. Returns an unsubscribe function.
+   * Called whenever contacts.upsert / contacts.update fires or on logout.
+   */
+  subscribeContacts(cb: () => void): () => void {
+    this._contactListeners.add(cb);
+    return () => this._contactListeners.delete(cb);
+  }
+
+  private _notifyContactListeners() {
+    for (const cb of this._contactListeners) {
+      try { cb(); } catch { /* never let a listener crash the service */ }
+    }
+  }
+
   constructor(private userId: string) {}
 
   get authDir() {
@@ -220,7 +238,10 @@ export class BaileysService {
               : (existing?.name ?? null); // field absent: keep what we have
           this._contacts.set(number, { number, name });
         }
-        if (list.length) this.queueSavePersistedContacts();
+        if (list.length) {
+          this.queueSavePersistedContacts();
+          this._notifyContactListeners();
+        }
       };
 
       sock.ev.on("messaging-history.set", ({ contacts }) => upsertContacts(contacts ?? []));

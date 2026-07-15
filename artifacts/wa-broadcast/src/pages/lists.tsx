@@ -224,13 +224,46 @@ export default function Lists() {
     await refreshImportContacts();
   }
 
-  // Keep the list live while the dialog is open: WhatsApp contacts you add
-  // while browsing (or synced in the background) show up without needing to
-  // close and reopen the dialog.
+  // Keep the list live while the dialog is open via SSE push.
+  // The server sends the full contact list immediately on connect, then again
+  // every time Baileys fires contacts.upsert / contacts.update — so a newly
+  // saved contact appears within milliseconds, with no polling lag.
   useEffect(() => {
     if (!isImportOpen) return;
-    const interval = setInterval(() => void refreshImportContacts(true), 5000);
-    return () => clearInterval(interval);
+
+    let es: EventSource | null = null;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+    function startSSE() {
+      es = new EventSource(`${BASE}/api/baileys/contacts/stream`, {
+        withCredentials: true,
+      });
+
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data as string) as { contacts: SyncedContact[] };
+          setImportContacts(data.contacts);
+        } catch {
+          /* ignore malformed frames */
+        }
+      };
+
+      es.onerror = () => {
+        // SSE unavailable (e.g. proxy dropped the stream) — fall back to polling
+        es?.close();
+        es = null;
+        if (!fallbackInterval) {
+          fallbackInterval = setInterval(() => void refreshImportContacts(true), 5_000);
+        }
+      };
+    }
+
+    startSSE();
+
+    return () => {
+      es?.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
   }, [isImportOpen]);
 
   const filteredImportContacts = (importContacts ?? []).filter((c) => {
