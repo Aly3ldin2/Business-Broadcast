@@ -73,18 +73,37 @@ export class BaileysService {
   }
 
   /**
-   * The in-memory contact map is wiped every time the Node process restarts,
-   * but WhatsApp only re-sends the full contact list ("messaging-history.set")
-   * once, right after pairing — a plain reconnect using saved credentials does
-   * NOT re-trigger it. Without persisting to disk, a server restart made
-   * contacts disappear until enough individual "contacts.update" events
-   * trickled back in from chat activity. Persist to disk and reload on start.
+   * contacts.json format — versioned so stale files from old code are ignored.
+   *
+   * v1 (plain array)  — stored both `name` and `notify` as the name field;
+   *                     unsaved numbers appeared in the contact list. Ignored.
+   * v2 (this version) — only contacts where `name` came from the phone's own
+   *                     address book are stored; `notify` is never persisted.
    */
+  private static readonly CONTACTS_FILE_VERSION = 2;
+
   private async loadPersistedContacts() {
     try {
       const raw = await readFile(this.contactsFile, "utf-8");
-      const list = JSON.parse(raw) as SyncedContact[];
-      for (const c of list) this._contacts.set(c.number, c);
+      const parsed = JSON.parse(raw) as unknown;
+
+      // Reject old plain-array format (v1) — it may contain notify-sourced names.
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        await rm(this.contactsFile, { force: true });
+        return;
+      }
+
+      const file = parsed as { v?: number; contacts?: SyncedContact[] };
+      if ((file.v ?? 0) < BaileysService.CONTACTS_FILE_VERSION) {
+        // Outdated version — discard and let WhatsApp re-sync clean data.
+        await rm(this.contactsFile, { force: true });
+        return;
+      }
+
+      for (const c of file.contacts ?? []) {
+        // Extra guard: only load entries with a non-empty saved name.
+        if (c.name?.trim()) this._contacts.set(c.number, c);
+      }
     } catch {
       // No persisted contacts yet — fine, they'll populate from sync events.
     }
@@ -96,8 +115,10 @@ export class BaileysService {
     this._savePersistedContactsQueued = true;
     setTimeout(() => {
       this._savePersistedContactsQueued = false;
-      const list = [...this._contacts.values()];
-      void writeFile(this.contactsFile, JSON.stringify(list), "utf-8").catch(() => {
+      // Only persist contacts that have a real saved name — never bare numbers.
+      const contacts = [...this._contacts.values()].filter((c) => c.name?.trim());
+      const payload = { v: BaileysService.CONTACTS_FILE_VERSION, contacts };
+      void writeFile(this.contactsFile, JSON.stringify(payload), "utf-8").catch(() => {
         /* best-effort persistence — in-memory copy still works for this run */
       });
     }, 1_000);
