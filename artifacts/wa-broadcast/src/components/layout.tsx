@@ -283,12 +283,16 @@ export function Layout({ children }: LayoutProps) {
             <SidebarFooter />
           </div>
 
-          {/* ── Page content — switches dir for Arabic/English content ── */}
-          <main
-            className="flex-1 overflow-y-auto overflow-x-hidden"
-            dir={dir}
-          >
-            <div className="mx-auto max-w-3xl w-full px-4 pt-6 pb-6 md:px-6 lg:px-8">
+          {/* ── Page content ──
+               dir="ltr" on the scroll container keeps the scrollbar
+               permanently on the RIGHT side regardless of language.
+               dir={dir} on the inner wrapper lets Arabic/English content
+               flow in the correct reading direction.                    */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden" dir="ltr">
+            <div
+              className="mx-auto max-w-3xl w-full px-4 pt-6 pb-6 md:px-6 lg:px-8"
+              dir={dir}
+            >
               {children}
               <ContactFooter />
             </div>
