@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Moon, Sun, LogOut, Globe, Linkedin, Github, Facebook } from "lucide-react";
+import { Send, Settings, Users, Menu, Moon, Sun, LogOut, Globe, Linkedin, Github, Facebook, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
@@ -145,18 +145,32 @@ export function Layout({ children }: LayoutProps) {
   const { isDark, toggle } = useTheme();
   const { t, dir } = useI18n();
 
+  // Sidebar open/collapsed — persisted across sessions
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem("sidebar_open") !== "false"; } catch { return true; }
+  });
+
+  function toggleSidebar() {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("sidebar_open", String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
   const navigation = [
     { nameKey: "nav_home",     href: "/",        icon: Send     },
     { nameKey: "nav_lists",    href: "/lists",   icon: Users    },
     { nameKey: "nav_settings", href: "/settings", icon: Settings },
   ];
 
-  const NavLinks = () => (
+  // Shared nav links used in both sidebar and mobile sheet
+  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
     <nav className="flex flex-1 flex-col gap-0.5 py-3 px-2">
       {navigation.map((item) => {
         const isActive = location === item.href;
         return (
-          <Link key={item.nameKey} href={item.href}>
+          <Link key={item.nameKey} href={item.href} onClick={onNavigate}>
             <div className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${
               isActive
                 ? "bg-primary text-primary-foreground"
@@ -175,20 +189,22 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-background" dir="ltr">
       <div className="flex h-screen overflow-hidden">
 
-        {/* Mobile top bar */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b flex items-center px-4 gap-3">
+        {/* ── Mobile top bar (hidden on md+) ───────────────────────── */}
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b flex items-center px-3 gap-2">
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
+              <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-52 p-0">
+            <SheetContent side="left" className="w-64 p-0 flex flex-col">
               <div className="flex h-14 shrink-0 items-center px-4 border-b">
                 <SiteLogo />
               </div>
-              <NavLinks />
-              <div className="p-2 border-t space-y-1">
+              <div className="flex flex-1 flex-col overflow-y-auto">
+                <NavLinks />
+              </div>
+              <div className="p-2 border-t space-y-1 shrink-0">
                 <LangToggle />
                 <ThemeToggle isDark={isDark} onToggle={toggle} />
                 <LogoutButton />
@@ -205,31 +221,63 @@ export function Layout({ children }: LayoutProps) {
           </button>
         </div>
 
-        {/* Desktop sidebar */}
-        <div className="hidden md:flex md:w-48 md:flex-col border-r bg-background">
+        {/* ── Desktop sidebar (hidden on mobile) ───────────────────── */}
+        {/* Width transitions smoothly between open (w-52) and closed (w-0) */}
+        <div
+          className={`hidden md:flex md:flex-col border-r bg-background shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+            sidebarOpen ? "w-52" : "w-0 border-r-0"
+          }`}
+        >
+          {/* Sidebar header */}
           <div className="flex h-14 shrink-0 items-center px-4 border-b">
             <SiteLogo />
           </div>
+
+          {/* Nav links */}
           <div className="flex flex-1 flex-col overflow-y-auto">
             <NavLinks />
           </div>
-          <div className="p-2 border-t space-y-1">
+
+          {/* Sidebar footer */}
+          <div className="p-2 border-t space-y-1 shrink-0">
             <LangToggle />
             <ThemeToggle isDark={isDark} onToggle={toggle} />
             <LogoutButton />
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden" dir={dir}>
-          <main className="flex-1 overflow-y-auto p-4 pt-16 md:pt-6 md:p-8">
-            <div className="mx-auto max-w-3xl">
+        {/* ── Main content area ─────────────────────────────────────── */}
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0" dir={dir}>
+
+          {/* Desktop top bar — visible only on md+ */}
+          <div className="hidden md:flex h-14 shrink-0 items-center px-3 gap-2 bg-background border-b">
+            {/* Sidebar toggle button */}
+            <button
+              onClick={toggleSidebar}
+              title={sidebarOpen ? t("nav_collapse_sidebar") ?? "Collapse sidebar" : t("nav_expand_sidebar") ?? "Expand sidebar"}
+              className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            >
+              {sidebarOpen
+                ? <PanelLeftClose className="h-5 w-5" />
+                : <PanelLeftOpen  className="h-5 w-5" />
+              }
+            </button>
+
+            {/* Show logo when sidebar is collapsed so the brand is always visible */}
+            <div className={`transition-all duration-300 overflow-hidden ${sidebarOpen ? "w-0 opacity-0" : "opacity-100"}`}>
+              <SiteLogo />
+            </div>
+          </div>
+
+          {/* Scrollable page content */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="mx-auto max-w-3xl w-full px-4 pt-20 pb-6 md:px-6 md:pt-6 lg:px-8">
               {children}
               <ContactFooter />
             </div>
           </main>
-        </div>
 
+        </div>
       </div>
     </div>
   );

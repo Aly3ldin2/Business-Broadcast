@@ -35,13 +35,22 @@ export function Reveal({
 /**
  * Page-level entrance: fades the whole page in when it first mounts.
  */
-export function PageReveal({ children, className }: { children: ReactNode; className?: string }) {
+export function PageReveal({
+  children,
+  className,
+  dir,
+}: {
+  children: ReactNode;
+  className?: string;
+  dir?: "ltr" | "rtl";
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: EASE }}
       className={className}
+      dir={dir}
     >
       {children}
     </motion.div>

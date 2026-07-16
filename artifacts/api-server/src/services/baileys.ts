@@ -243,7 +243,6 @@ export class BaileysService {
         }[],
         source: string,
       ) => {
-        let added = 0, cleared = 0, skipped = 0;
         for (const c of list) {
           // Baileys v7 contacts may report `id` as either a PN JID
           // (@s.whatsapp.net) or an LID (@lid) — LID-based contacts carry
@@ -251,9 +250,9 @@ export class BaileysService {
           // this fallback, LID-only contacts were silently dropped.
           const pnSource =
             (c.id?.endsWith("@s.whatsapp.net") ? c.id : undefined) ?? c.phoneNumber;
-          if (!pnSource) { skipped++; continue; }
+          if (!pnSource) continue;
           const number = pnSource.replace("@s.whatsapp.net", "").replace(/\D/g, "");
-          if (!number) { skipped++; continue; }
+          if (!number) continue;
           // Only `name` reflects a name actually saved in the user's phone
           // contacts. `notify` is the pushName the *other* person chose for
           // themselves (e.g. shown in chats/groups) and is present even for
@@ -283,12 +282,7 @@ export class BaileysService {
             /^\+[\d\s\u00b7\u22c5\u2219.()\-]+$/.test(rawName);
           const name = looksLikePhone ? (existing?.name ?? null) : rawName;
           this._contacts.set(number, { number, name });
-          if (name) added++; else cleared++;
         }
-        // Diagnostic log — remove once contacts behavior is confirmed correct
-        console.log(
-          `[contacts] ${source}: total=${list.length} withName=${added} noName=${cleared} skipped=${skipped} | mapSize=${this._contacts.size} | namedInMap=${[...this._contacts.values()].filter(x=>x.name).length}`,
-        );
         if (list.length) {
           this.queueSavePersistedContacts();
           this._notifyContactListeners();
@@ -300,7 +294,7 @@ export class BaileysService {
         // Seed chat-activity map from historical chats
         for (const chat of chats ?? []) {
           const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
-          if (!ts) continue;
+          if (!ts || !chat.id) continue;
           const num = chat.id.replace(/@.+$/, "").replace(/\D/g, "");
           if (num && !chat.id.includes("@g.us")) { // skip groups
             const prev = this._chatActivity.get(num) ?? 0;
@@ -310,20 +304,6 @@ export class BaileysService {
       });
       sock.ev.on("contacts.upsert", (contacts) => upsertContacts(contacts, "contacts.upsert"));
       sock.ev.on("contacts.update", (updates) => upsertContacts(updates, "contacts.update"));
-
-      // Track chat activity so recently-chatted contacts sort to the top
-      sock.ev.on("chats.set", ({ chats }) => {
-        for (const chat of chats) {
-          const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
-          if (!ts) continue;
-          const num = chat.id.replace(/@.+$/, "").replace(/\D/g, "");
-          if (num && !chat.id.includes("@g.us")) {
-            const prev = this._chatActivity.get(num) ?? 0;
-            if (Number(ts) > prev) this._chatActivity.set(num, Number(ts));
-          }
-        }
-        this._notifyContactListeners();
-      });
       sock.ev.on("chats.update", (updates) => {
         for (const chat of updates) {
           const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
@@ -521,15 +501,15 @@ export class BaileysService {
     const jid = `${phone}@s.whatsapp.net`;
     // Always send as video/mp4 — the upload pipeline re-encodes every video to
     // H.264/AAC/MP4 before it reaches here, so WhatsApp can always play it.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await this.sock.sendMessage(jid, {
       video: buffer,
       mimetype: "video/mp4",
       gifPlayback: false,
       ptv: false,
-      fileLength: BigInt(buffer.byteLength),
       ...(seconds ? { seconds } : {}),
       ...(caption ? { caption } : {}),
-    });
+    } as any);
   }
 
   async logout() {

@@ -73,7 +73,8 @@ export default function Settings() {
 
   const { data: baileysStatus, isFetching: statusFetching } = useGetBaileysStatus({
     query: {
-      refetchInterval: (q) => (q.state.data?.connected ? 10_000 : 2_000),
+      refetchInterval: (q: { state: { data?: { connected?: boolean } } }) =>
+        q.state.data?.connected ? 10_000 : 2_000,
       queryKey: getGetBaileysStatusQueryKey(),
     },
   });

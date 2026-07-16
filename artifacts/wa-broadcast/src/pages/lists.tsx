@@ -131,7 +131,7 @@ export default function Lists() {
       ...list,
       phones: [...list.phones, { number: full, name: quickName.trim() || null }],
     };
-    const newLists = (gistData?.lists ?? []).map((l) =>
+    const newLists = (gistData?.lists ?? []).map((l: { name: string; phones: { number: string; name: string | null }[] }) =>
       l.name === list.name ? updatedList : l
     );
 
@@ -348,7 +348,7 @@ export default function Lists() {
   }
 
   async function handleDelete(name: string) {
-    const newLists = (gistData?.lists ?? []).filter((l) => l.name !== name);
+    const newLists = (gistData?.lists ?? []).filter((l: { name: string }) => l.name !== name);
     try {
       await saveMutation.mutateAsync({ data: { lists: newLists } });
       queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });

@@ -575,14 +575,16 @@ export default function Campaign() {
   const { data: settings } = useGetSettings({
     query: {
       queryKey: getGetSettingsQueryKey(),
-      refetchInterval: (q) => (q.state.data?.isConfigured ? false : 5_000),
+      refetchInterval: (q: { state: { data?: { isConfigured?: boolean } } }) =>
+        q.state.data?.isConfigured ? false : 5_000,
     },
   });
 
   const { data: baileysStatus } = useGetBaileysStatus({
     query: {
       queryKey: getGetBaileysStatusQueryKey(),
-      refetchInterval: (q) => (q.state.data?.connected ? 15_000 : 5_000),
+      refetchInterval: (q: { state: { data?: { connected?: boolean } } }) =>
+        q.state.data?.connected ? 15_000 : 5_000,
     },
   });
 
@@ -860,9 +862,9 @@ export default function Campaign() {
     const name = listName.trim();
     if (!name) return;
     const newPhones = phones.map((n) => ({ number: n, name: null }));
-    const idx = existing.findIndex((l) => l.name === name);
+    const idx = existing.findIndex((l: { name: string }) => l.name === name);
     const newLists = idx >= 0
-      ? existing.map((l, i) => (i === idx ? { ...l, phones: newPhones } : l))
+      ? existing.map((l: (typeof existing)[number], i: number) => (i === idx ? { ...l, phones: newPhones } : l))
       : [...existing, { name, phones: newPhones }];
     try {
       await saveMutation.mutateAsync({ data: { lists: newLists } });

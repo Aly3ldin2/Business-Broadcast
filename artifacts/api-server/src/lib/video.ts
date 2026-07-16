@@ -97,13 +97,13 @@ export async function transcodeVideoFile(inputPath: string): Promise<TranscodeRe
           "-y",
           "-i", inputPath,
           "-map", "0:v:0",
-          ...(info.hasAudio ? ["-map", "0:a:0"] : []),
+          ...(info?.hasAudio ? ["-map", "0:a:0"] : []),
           "-c", "copy",
           "-movflags", "+faststart",
           outputPath,
         ]);
         const buffer = await readFile(outputPath);
-        return { buffer, seconds: info!.seconds };
+        return { buffer, seconds: info?.seconds ?? 0 };
       } catch {
         // Fall through to full re-encode below if the fast remux fails
         // for any reason (e.g. unusual stream layout).
