@@ -1,1 +1,2 @@
 - [Baileys contact name vs notify](wa-baileys-contacts.md) — use `c.name` only for "saved contact" filtering; `c.notify` is the other person's own pushName, not a sign the number is saved locally.
+- [Baileys phone-number-as-name](wa-phone-name-filter.md) — WhatsApp sends `name: "+20∙∙∙∙∙∙∙∙31"` for unsaved contacts; filter with looksLikePhone regex and preserve existing name instead of overwriting with null.

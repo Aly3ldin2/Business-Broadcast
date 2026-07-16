@@ -275,9 +275,13 @@ export class BaileysService {
           // Reject names that look like formatted phone numbers — they indicate
           // an unsaved contact. Pattern: starts with "+" then only digits,
           // spaces, middle-dots (U+00B7 / U+22C5 / U+2219), dashes, parens.
+          // IMPORTANT: when WhatsApp sends a phone-number-like "name" on reconnect,
+          // it does NOT mean the real saved name was removed — it just means WhatsApp
+          // has no address-book entry for this number. Keep the existing persisted name
+          // rather than wiping it, so contacts survive refreshes and server restarts.
           const looksLikePhone = rawName !== null &&
             /^\+[\d\s\u00b7\u22c5\u2219.()\-]+$/.test(rawName);
-          const name = looksLikePhone ? null : rawName;
+          const name = looksLikePhone ? (existing?.name ?? null) : rawName;
           this._contacts.set(number, { number, name });
           if (name) added++; else cleared++;
         }
