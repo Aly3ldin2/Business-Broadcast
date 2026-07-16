@@ -34,7 +34,7 @@ import {
 import {
   Plus, Trash2, Pencil, Loader2, Github,
   Users, X, User, UserPlus,
-  Check, MessageCircle, Search,
+  Check, MessageCircle, Search, Eye, EyeOff,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
@@ -361,6 +361,16 @@ export default function Lists() {
 
   const lists: PhoneList[] = gistData?.lists ?? [];
 
+  // which list cards have their contacts panel expanded
+  const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
+  function toggleExpanded(name: string) {
+    setExpandedLists((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  }
+
   return (
     <PageReveal className="space-y-6 max-w-2xl" dir={dir}>
       {/* Header */}
@@ -432,16 +442,38 @@ export default function Lists() {
             className="rounded-2xl border bg-card overflow-hidden shadow-sm"
           >
             {/* Card header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+            <div className="flex items-center gap-3 px-4 py-3 bg-muted/30">
+              {/* List info */}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-base truncate">{list.name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <Users className="h-3 w-3 shrink-0" />
                   {list.phones.length === 0
                     ? t("lists_no_contacts")
                     : t("lists_contact_count", { n: list.phones.length })}
                 </p>
               </div>
+
+              {/* Actions */}
               <div className="flex items-center gap-1 shrink-0">
+                {/* View toggle — only shown when list has contacts */}
+                {list.phones.length > 0 && (
+                  <button
+                    onClick={() => toggleExpanded(list.name)}
+                    title={expandedLists.has(list.name) ? t("lists_hide") ?? "إخفاء" : t("lists_view") ?? "عرض"}
+                    className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                      expandedLists.has(list.name)
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                    }`}
+                  >
+                    {expandedLists.has(list.name)
+                      ? <><EyeOff className="h-3.5 w-3.5" />{t("lists_hide") ?? "إخفاء"}</>
+                      : <><Eye    className="h-3.5 w-3.5" />{t("lists_view") ?? "عرض"}</>
+                    }
+                  </button>
+                )}
+
                 <button
                   onClick={() =>
                     quickAddList === list.name ? closeQuickAdd() : openQuickAdd(list.name)
@@ -533,17 +565,14 @@ export default function Lists() {
               </div>
             )}
 
-            {/* Contacts */}
-            {list.phones.length > 0 && (
-              <div className="divide-y divide-border/60">
+            {/* Contacts — shown only when expanded */}
+            {expandedLists.has(list.name) && list.phones.length > 0 && (
+              <div className="border-t divide-y divide-border/60">
                 {list.phones.map((contact) => {
                   const initials = getInitials(contact.name, contact.number);
-                  const color = avatarColor(contact.number);
+                  const color    = avatarColor(contact.number);
                   return (
-                    <div
-                      key={contact.number}
-                      className="flex items-center gap-3 px-4 py-2.5"
-                    >
+                    <div key={contact.number} className="flex items-center gap-3 px-4 py-2.5">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${color}`}>
                         {initials}
                       </div>
