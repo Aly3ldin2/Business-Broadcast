@@ -81,7 +81,7 @@ function PasswordInput({
 }
 
 // ---------------------------------------------------------------------------
-// Auth shell — split layout (hero left, form right)
+// Auth shell — centered card with glowing logo hero
 // ---------------------------------------------------------------------------
 function AuthShell({
   children, title, subtitle, badge,
@@ -95,88 +95,138 @@ function AuthShell({
   const { t, lang, setLang, dir } = useI18n();
 
   return (
-    <div className="min-h-screen flex bg-background" dir={dir}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-background" dir={dir}>
 
-      {/* Hero panel — desktop only */}
-      <div
-        className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col items-center justify-center p-12 overflow-hidden"
-        style={{
-          background: isDark
-            ? "linear-gradient(135deg, #0a1f1c 0%, #0d2b25 50%, #0f3d2e 100%)"
-            : "linear-gradient(135deg, #075e54 0%, #128c7e 50%, #25d366 100%)",
-        }}
-      >
-        {/* Decorative blobs */}
-        <div className="absolute top-[-10%] right-[-5%] w-72 h-72 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #fff 0%, transparent 70%)" }} />
-        <div className="absolute bottom-[-5%] left-[-5%] w-64 h-64 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #fff 0%, transparent 70%)" }} />
+      {/* ── Ambient background orbs ── */}
+      <div className="pointer-events-none select-none" aria-hidden>
+        {/* Top-left orb */}
+        <div
+          className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full"
+          style={{
+            background: isDark
+              ? "radial-gradient(circle, rgba(18,140,126,0.18) 0%, transparent 65%)"
+              : "radial-gradient(circle, rgba(37,211,102,0.22) 0%, transparent 65%)",
+          }}
+        />
+        {/* Bottom-right orb */}
+        <div
+          className="absolute -bottom-32 -right-32 w-[440px] h-[440px] rounded-full"
+          style={{
+            background: isDark
+              ? "radial-gradient(circle, rgba(7,94,84,0.22) 0%, transparent 65%)"
+              : "radial-gradient(circle, rgba(7,94,84,0.12) 0%, transparent 65%)",
+          }}
+        />
+        {/* Center subtle wash */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: isDark
+              ? "radial-gradient(ellipse 70% 50% at 50% 35%, rgba(18,140,126,0.06) 0%, transparent 100%)"
+              : "radial-gradient(ellipse 70% 50% at 50% 35%, rgba(37,211,102,0.07) 0%, transparent 100%)",
+          }}
+        />
+      </div>
 
-        <div className="relative z-10 text-center space-y-8 max-w-md">
-          <div className="flex justify-center">
-            <BroadcastLogo size={96} className="rounded-3xl shadow-2xl" />
+      {/* ── Top controls bar (always LTR so buttons stay at corners) ── */}
+      <div className="relative z-20 flex items-center justify-end gap-2 px-4 sm:px-8 pt-4 pb-2" dir="ltr">
+        <button
+          onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 backdrop-blur-sm transition-colors border border-border/60"
+        >
+          <Globe className="h-3.5 w-3.5 shrink-0" />
+          {t("lang_switch")}
+        </button>
+        <button
+          onClick={toggle}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 backdrop-blur-sm transition-colors border border-border/60"
+        >
+          {isDark
+            ? <><Sun  className="h-3.5 w-3.5 shrink-0" />{t("nav_light_mode")}</>
+            : <><Moon className="h-3.5 w-3.5 shrink-0" />{t("nav_dark_mode")}</>
+          }
+        </button>
+      </div>
+
+      {/* ── Main centered content ── */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-6 sm:py-10">
+
+        {/* ── Brand hero ── */}
+        <div className="flex flex-col items-center text-center mb-8 space-y-4">
+
+          {/* Logo with layered glow */}
+          <div className="relative flex items-center justify-center">
+            {/* Outer soft ring */}
+            <div
+              className="absolute rounded-[36px] opacity-30 blur-2xl"
+              style={{
+                width: 140, height: 140,
+                background: "linear-gradient(135deg, #075e54 0%, #25d366 100%)",
+              }}
+            />
+            {/* Inner tighter glow */}
+            <div
+              className="absolute rounded-[28px] opacity-50 blur-md"
+              style={{
+                width: 108, height: 108,
+                background: "linear-gradient(135deg, #075e54 0%, #25d366 100%)",
+              }}
+            />
+            {/* Logo itself */}
+            <BroadcastLogo
+              size={92}
+              className="relative rounded-[24px] shadow-2xl shadow-primary/40 splash-breathe"
+            />
           </div>
-          <div className="space-y-3">
-            <h1 className="text-4xl font-bold text-white leading-tight">{APP_NAME.replace(" ", "\n")}</h1>
-            <p className="text-white/70 text-lg leading-relaxed">{t("auth_hero_subtitle")}</p>
+
+          {/* App name */}
+          <div className="space-y-1.5">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-clip-text text-transparent"
+              style={{
+                backgroundImage: isDark
+                  ? "linear-gradient(135deg, #34d399 0%, #6ee7b7 100%)"
+                  : "linear-gradient(135deg, #065f46 0%, #059669 60%, #10b981 100%)",
+              }}
+            >
+              {APP_NAME}
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground max-w-xs leading-relaxed">
+              {t("auth_hero_subtitle")}
+            </p>
           </div>
-          <div className="flex flex-wrap justify-center gap-2">
+
+          {/* Feature pills */}
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
             {([t("auth_bulk_send"), t("auth_contact_lists"), t("auth_media_support")] as string[]).map((f) => (
               <span key={f}
-                className="px-3 py-1 rounded-full text-sm text-white/80 font-medium"
-                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}>
+                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+                           bg-primary/10 text-primary border border-primary/20 backdrop-blur-sm">
                 {f}
               </span>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Form panel */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between px-4 sm:px-8 pt-5">
-          {/* Mobile-only logo */}
-          <div className="flex lg:hidden items-center gap-2">
-            <BroadcastLogo size={28} className="shrink-0" />
-            <span className="text-sm font-bold text-foreground">{APP_NAME}</span>
-          </div>
-          <div className="hidden lg:block" />
+        {/* ── Form card ── */}
+        <div className="w-full max-w-sm">
+          <div className="bg-card/80 backdrop-blur-md border border-border/60 rounded-2xl shadow-2xl shadow-black/10 p-6 sm:p-8">
 
-          {/* Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setLang(lang === "ar" ? "en" : "ar")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
-            >
-              <Globe className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("lang_switch")}</span>
-            </button>
-            <button
-              onClick={toggle}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border"
-            >
-              {isDark
-                ? <><Sun className="h-3.5 w-3.5" /><span className="hidden sm:inline">{t("nav_light_mode")}</span></>
-                : <><Moon className="h-3.5 w-3.5" /><span className="hidden sm:inline">{t("nav_dark_mode")}</span></>
-              }
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 flex items-center justify-center px-4 sm:px-8 py-8">
-          <div className="w-full max-w-sm space-y-6">
-            <div className="space-y-1">
+            {/* Card header */}
+            <div className="space-y-1 mb-5">
               {badge && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary mb-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 mb-2">
+                  <ShieldCheck className="h-3 w-3" />
                   {badge}
                 </span>
               )}
-              <h2 className="text-2xl font-bold text-foreground">{title}</h2>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
+              <h2 className="text-xl font-bold text-foreground">{title}</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">{subtitle}</p>
             </div>
+
             {children}
           </div>
         </div>
+
       </div>
     </div>
   );
