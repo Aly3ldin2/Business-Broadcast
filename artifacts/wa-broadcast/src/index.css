@@ -84,9 +84,12 @@
   --sidebar-accent-foreground: 222.2 47.4% 11.2%;
   --sidebar-ring: 152 69% 31%;
 
-  --app-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Latin: Plus Jakarta Sans — clean, geometric, excellent at small UI sizes.
+     Arabic: Noto Sans Arabic — comprehensive coverage, harmonious weight matching.
+     The browser picks the right font per-script automatically via unicode-range. */
+  --app-font-sans: 'Plus Jakarta Sans', 'Noto Sans Arabic', system-ui, -apple-system, sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: Menlo, monospace;
+  --app-font-mono: 'Geist Mono', 'Fira Code', Menlo, monospace;
 }
 
 .dark {

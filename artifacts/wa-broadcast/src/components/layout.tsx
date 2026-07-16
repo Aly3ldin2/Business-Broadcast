@@ -1,6 +1,10 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Send, Settings, Users, Menu, Moon, Sun, LogOut, Globe, Linkedin, Github, Facebook, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  Send, Settings, Users, Menu, Moon, Sun, LogOut,
+  Globe, Linkedin, Github, Facebook,
+  PanelLeftClose, PanelLeftOpen,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,27 +14,28 @@ import { useI18n } from "@/lib/i18n";
 import { APP_NAME } from "@/lib/app-config";
 
 // ---------------------------------------------------------------------------
-// WhatsApp SVG icon (used in the contact footer)
+// WhatsApp SVG icon
 // ---------------------------------------------------------------------------
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
     </svg>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Layout-internal primitives
+// Shared primitives
 // ---------------------------------------------------------------------------
 const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
 interface LayoutProps { children: ReactNode }
 
+/** Brand mark — always rendered LTR so it never flips in Arabic mode */
 function SiteLogo() {
   return (
     <Link href="/">
-      <div className="flex items-center gap-2 cursor-pointer select-none group">
+      <div className="flex items-center gap-2 cursor-pointer select-none group" dir="ltr">
         <BroadcastLogo size={28} className="shrink-0" />
         <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors leading-tight">
           {APP_NAME}
@@ -145,7 +150,7 @@ export function Layout({ children }: LayoutProps) {
   const { isDark, toggle } = useTheme();
   const { t, dir } = useI18n();
 
-  // Sidebar open/collapsed — persisted across sessions
+  // Desktop sidebar open/collapsed — persisted across sessions
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     try { return localStorage.getItem("sidebar_open") !== "false"; } catch { return true; }
   });
@@ -159,24 +164,30 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const navigation = [
-    { nameKey: "nav_home",     href: "/",        icon: Send     },
-    { nameKey: "nav_lists",    href: "/lists",   icon: Users    },
+    { nameKey: "nav_home",     href: "/",         icon: Send     },
+    { nameKey: "nav_lists",    href: "/lists",    icon: Users    },
     { nameKey: "nav_settings", href: "/settings", icon: Settings },
   ];
 
-  // Shared nav links used in both sidebar and mobile sheet
-  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <nav className="flex flex-1 flex-col gap-0.5 py-3 px-2">
+  // Nav links — always LTR layout (icon left, label right) regardless of app language
+  const NavLinks = () => (
+    <nav className="flex flex-1 flex-col gap-0.5 py-3 px-2" dir="ltr">
       {navigation.map((item) => {
         const isActive = location === item.href;
         return (
-          <Link key={item.nameKey} href={item.href} onClick={onNavigate}>
-            <div className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}>
-              <item.icon className="mr-3 h-4 w-4 shrink-0" />
+          <Link key={item.nameKey} href={item.href}>
+            <div
+              className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+              dir={dir}           /* label text follows app language direction */
+            >
+              {/* Icon is always on the visual left */}
+              <span className="shrink-0 me-3 flex items-center" dir="ltr">
+                <item.icon className="h-4 w-4" />
+              </span>
               {t(item.nameKey)}
             </div>
           </Link>
@@ -185,93 +196,99 @@ export function Layout({ children }: LayoutProps) {
     </nav>
   );
 
-  return (
-    <div className="min-h-screen bg-background" dir="ltr">
-      <div className="flex h-screen overflow-hidden">
+  // Sidebar footer controls — always LTR so icons stay on visual left
+  const SidebarFooter = () => (
+    <div className="p-2 border-t space-y-1 shrink-0" dir="ltr">
+      <LangToggle />
+      <ThemeToggle isDark={isDark} onToggle={toggle} />
+      <LogoutButton />
+    </div>
+  );
 
-        {/* ── Mobile top bar (hidden on md+) ───────────────────────── */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-background border-b flex items-center px-3 gap-2">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0 flex flex-col">
-              <div className="flex h-14 shrink-0 items-center px-4 border-b">
-                <SiteLogo />
-              </div>
-              <div className="flex flex-1 flex-col overflow-y-auto">
-                <NavLinks />
-              </div>
-              <div className="p-2 border-t space-y-1 shrink-0">
-                <LangToggle />
-                <ThemeToggle isDark={isDark} onToggle={toggle} />
-                <LogoutButton />
-              </div>
-            </SheetContent>
-          </Sheet>
+  return (
+    /* Outermost shell — always LTR so structural chrome (sidebar position,
+       scroll-bar side, header layout) never flips in Arabic mode.
+       Only the page *content* switches to RTL via dir={dir} below. */
+    <div className="min-h-screen bg-background" dir="ltr">
+      <div className="flex flex-col h-screen overflow-hidden">
+
+        {/* ══════════════════════════════════════════════════════════════
+            TOP BAR — full width, always LTR, always shows logo top-left
+            ══════════════════════════════════════════════════════════════ */}
+        <header
+          className="shrink-0 h-14 bg-background border-b flex items-center px-3 gap-2 z-40"
+          dir="ltr"           /* ← guarantees left-anchored layout in every language */
+        >
+          {/* ── Mobile: hamburger slides open the Sheet nav ── */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64 p-0 flex flex-col" dir="ltr">
+                <div className="flex h-14 shrink-0 items-center px-4 border-b">
+                  <SiteLogo />
+                </div>
+                <div className="flex flex-1 flex-col overflow-y-auto">
+                  <NavLinks />
+                </div>
+                <SidebarFooter />
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          {/* ── Desktop: sidebar toggle ── */}
+          <button
+            onClick={toggleSidebar}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            className="hidden md:flex items-center justify-center h-9 w-9 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+          >
+            {sidebarOpen
+              ? <PanelLeftClose className="h-5 w-5" />
+              : <PanelLeftOpen  className="h-5 w-5" />
+            }
+          </button>
+
+          {/* ── Logo — always top-left on every device and language ── */}
           <SiteLogo />
+
+          {/* Spacer */}
           <div className="flex-1" />
+
+          {/* ── Mobile quick-access: theme toggle in header ── */}
           <button
             onClick={toggle}
-            className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            className="md:hidden p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-        </div>
+        </header>
 
-        {/* ── Desktop sidebar (hidden on mobile) ───────────────────── */}
-        {/* Width transitions smoothly between open (w-52) and closed (w-0) */}
-        <div
-          className={`hidden md:flex md:flex-col border-r bg-background shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
-            sidebarOpen ? "w-52" : "w-0 border-r-0"
-          }`}
-        >
-          {/* Sidebar header */}
-          <div className="flex h-14 shrink-0 items-center px-4 border-b">
-            <SiteLogo />
-          </div>
+        {/* ══════════════════════════════════════════════════════════════
+            BODY — sidebar + main content below the top bar
+            ══════════════════════════════════════════════════════════════ */}
+        <div className="flex flex-1 overflow-hidden">
 
-          {/* Nav links */}
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            <NavLinks />
-          </div>
-
-          {/* Sidebar footer */}
-          <div className="p-2 border-t space-y-1 shrink-0">
-            <LangToggle />
-            <ThemeToggle isDark={isDark} onToggle={toggle} />
-            <LogoutButton />
-          </div>
-        </div>
-
-        {/* ── Main content area ─────────────────────────────────────── */}
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0" dir={dir}>
-
-          {/* Desktop top bar — visible only on md+ */}
-          <div className="hidden md:flex h-14 shrink-0 items-center px-3 gap-2 bg-background border-b">
-            {/* Sidebar toggle button */}
-            <button
-              onClick={toggleSidebar}
-              title={sidebarOpen ? t("nav_collapse_sidebar") ?? "Collapse sidebar" : t("nav_expand_sidebar") ?? "Expand sidebar"}
-              className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
-            >
-              {sidebarOpen
-                ? <PanelLeftClose className="h-5 w-5" />
-                : <PanelLeftOpen  className="h-5 w-5" />
-              }
-            </button>
-
-            {/* Show logo when sidebar is collapsed so the brand is always visible */}
-            <div className={`transition-all duration-300 overflow-hidden ${sidebarOpen ? "w-0 opacity-0" : "opacity-100"}`}>
-              <SiteLogo />
+          {/* ── Desktop sidebar (hidden on mobile) ── */}
+          <div
+            className={`hidden md:flex md:flex-col border-r bg-background shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+              sidebarOpen ? "w-52" : "w-0 border-r-0"
+            }`}
+          >
+            <div className="flex flex-1 flex-col overflow-y-auto">
+              <NavLinks />
             </div>
+            <SidebarFooter />
           </div>
 
-          {/* Scrollable page content */}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden">
-            <div className="mx-auto max-w-3xl w-full px-4 pt-20 pb-6 md:px-6 md:pt-6 lg:px-8">
+          {/* ── Page content — switches dir for Arabic/English content ── */}
+          <main
+            className="flex-1 overflow-y-auto overflow-x-hidden"
+            dir={dir}
+          >
+            <div className="mx-auto max-w-3xl w-full px-4 pt-6 pb-6 md:px-6 lg:px-8">
               {children}
               <ContactFooter />
             </div>
