@@ -1,4 +1,5 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { Link, useLocation } from "wouter";
 import {
   Send, Settings, Users, Menu, Moon, Sun, LogOut,
@@ -31,15 +32,47 @@ const BASE = import.meta.env.BASE_URL.replace(/\/+$/, "") || "";
 
 interface LayoutProps { children: ReactNode }
 
-/** Brand mark — always rendered LTR so it never flips in Arabic mode */
+/** Brand mark — always LTR; app-name words animate in one-by-one on mount */
 function SiteLogo() {
+  const words = APP_NAME.split(" "); // ["WhatsApp", "Broadcast"]
+  const [mounted, setMounted] = useState(false);
+
+  // tiny delay so React has painted the shell before the animation fires
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 60); return () => clearTimeout(t); }, []);
+
+  const EASE = [0.22, 0.68, 0.18, 1.02] as const;
+
   return (
     <Link href="/">
-      <div className="flex items-center gap-2 cursor-pointer select-none group" dir="ltr">
-        <BroadcastLogo size={28} className="shrink-0" />
-        <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors leading-tight">
-          {APP_NAME}
-        </span>
+      <div className="flex items-center gap-2 cursor-pointer select-none" dir="ltr">
+        {/* Icon — pops in slightly ahead of the text */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.72 }}
+          animate={mounted ? { opacity: 1, scale: 1 } : {}}
+          transition={{ duration: 0.38, ease: EASE }}
+          className="shrink-0"
+        >
+          <BroadcastLogo size={28} />
+        </motion.div>
+
+        {/* Words slide + blur into place, one after the other */}
+        <div className="flex items-center gap-[0.28em] overflow-hidden">
+          {words.map((word, i) => (
+            <motion.span
+              key={word}
+              className="text-sm font-bold leading-tight text-foreground hover:text-primary transition-colors"
+              initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+              animate={mounted ? { opacity: 1, y: 0, filter: "blur(0px)" } : {}}
+              transition={{
+                duration: 0.42,
+                delay: 0.18 + i * 0.18,   // stagger: 0.18s → 0.36s
+                ease: EASE,
+              }}
+            >
+              {word}
+            </motion.span>
+          ))}
+        </div>
       </div>
     </Link>
   );

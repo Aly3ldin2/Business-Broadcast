@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { PageReveal, Reveal } from "@/components/reveal";
-import { AnimatedBrandHero } from "@/components/animated-brand-hero";
+import { BroadcastLogo } from "@/components/brand-logo";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useLoadPhonesFromGist,
@@ -900,8 +900,15 @@ export default function Campaign() {
           onChange={handleFileInput}
         />
 
-        {/* ── Animated brand hero — word-by-word loop ── */}
-        <AnimatedBrandHero subtitle={t("campaign_subtitle") as string} />
+        <Reveal delay={0}>
+          <div className="flex items-center gap-3">
+            <BroadcastLogo size={36} className="shrink-0" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{t("campaign_title")}</h1>
+              <p className="text-muted-foreground mt-0.5 text-sm">{t("campaign_subtitle")}</p>
+            </div>
+          </div>
+        </Reveal>
 
         {!isConnected && (
           <Reveal delay={0.05}>
