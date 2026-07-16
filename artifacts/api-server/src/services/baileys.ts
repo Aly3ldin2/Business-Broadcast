@@ -23,6 +23,8 @@ export interface SyncedContact {
   /** Phone number without the "+" or "@s.whatsapp.net" suffix */
   number: string;
   name: string | null;
+  /** Unix timestamp (seconds) of last conversation — undefined if no chat history */
+  lastChatAt?: number;
 }
 
 export class BaileysService {
@@ -32,6 +34,8 @@ export class BaileysService {
   private _initializing = false;
   /** In-memory contact book, populated from Baileys' contacts sync events */
   private _contacts = new Map<string, SyncedContact>();
+  /** Last chat activity timestamp (seconds) per phone number — for "recently chatted" sort */
+  private _chatActivity = new Map<string, number>();
   /** true once the WS to WA servers is confirmed open (QR fired or connection opened) */
   private _socketReady = false;
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -101,8 +105,12 @@ export class BaileysService {
       }
 
       for (const c of file.contacts ?? []) {
-        // Extra guard: only load entries with a non-empty saved name.
-        if (c.name?.trim()) this._contacts.set(c.number, c);
+        // Extra guard: only load entries with a real saved name —
+        // reject entries where name looks like a formatted phone number
+        // (e.g. "+20∙∙∙∙∙∙∙∙31") which WhatsApp uses for unsaved contacts.
+        const name = c.name?.trim();
+        const looksLikePhone = !!name && /^\+[\d\s\u00b7\u22c5\u2219.()\-]+$/.test(name);
+        if (name && !looksLikePhone) this._contacts.set(c.number, c);
       }
     } catch {
       // No persisted contacts yet — fine, they'll populate from sync events.
@@ -254,11 +262,22 @@ export class BaileysService {
           //
           // Distinguish undefined (field absent → keep existing) from null/""
           // (explicit clear from WhatsApp → contact was unsaved, wipe the name).
+          //
+          // WhatsApp also sets `name` to a formatted phone number (e.g.
+          // "+20∙∙∙∙∙∙∙∙31") for contacts the user hasn't actually saved in
+          // their address book. Treat those as "no name" so they don't leak
+          // into the import list.
           const existing = this._contacts.get(number);
-          const name =
+          const rawName =
             c.name !== undefined
               ? (c.name?.trim() || null) // explicit value: use it (null if empty)
               : (existing?.name ?? null); // field absent: keep what we have
+          // Reject names that look like formatted phone numbers — they indicate
+          // an unsaved contact. Pattern: starts with "+" then only digits,
+          // spaces, middle-dots (U+00B7 / U+22C5 / U+2219), dashes, parens.
+          const looksLikePhone = rawName !== null &&
+            /^\+[\d\s\u00b7\u22c5\u2219.()\-]+$/.test(rawName);
+          const name = looksLikePhone ? null : rawName;
           this._contacts.set(number, { number, name });
           if (name) added++; else cleared++;
         }
@@ -272,9 +291,60 @@ export class BaileysService {
         }
       };
 
-      sock.ev.on("messaging-history.set", ({ contacts }) => upsertContacts(contacts ?? [], "history.set"));
+      sock.ev.on("messaging-history.set", ({ contacts, chats }) => {
+        upsertContacts(contacts ?? [], "history.set");
+        // Seed chat-activity map from historical chats
+        for (const chat of chats ?? []) {
+          const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
+          if (!ts) continue;
+          const num = chat.id.replace(/@.+$/, "").replace(/\D/g, "");
+          if (num && !chat.id.includes("@g.us")) { // skip groups
+            const prev = this._chatActivity.get(num) ?? 0;
+            if (Number(ts) > prev) this._chatActivity.set(num, Number(ts));
+          }
+        }
+      });
       sock.ev.on("contacts.upsert", (contacts) => upsertContacts(contacts, "contacts.upsert"));
       sock.ev.on("contacts.update", (updates) => upsertContacts(updates, "contacts.update"));
+
+      // Track chat activity so recently-chatted contacts sort to the top
+      sock.ev.on("chats.set", ({ chats }) => {
+        for (const chat of chats) {
+          const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
+          if (!ts) continue;
+          const num = chat.id.replace(/@.+$/, "").replace(/\D/g, "");
+          if (num && !chat.id.includes("@g.us")) {
+            const prev = this._chatActivity.get(num) ?? 0;
+            if (Number(ts) > prev) this._chatActivity.set(num, Number(ts));
+          }
+        }
+        this._notifyContactListeners();
+      });
+      sock.ev.on("chats.update", (updates) => {
+        for (const chat of updates) {
+          const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
+          if (!ts) continue;
+          const num = chat.id?.replace(/@.+$/, "").replace(/\D/g, "");
+          if (num && !chat.id?.includes("@g.us")) {
+            const prev = this._chatActivity.get(num) ?? 0;
+            if (Number(ts) > prev) this._chatActivity.set(num, Number(ts));
+          }
+        }
+      });
+      sock.ev.on("messages.upsert", ({ messages }) => {
+        for (const msg of messages) {
+          const jid = msg.key.remoteJid;
+          if (!jid || jid.includes("@g.us") || jid.includes("@broadcast")) continue;
+          const num = jid.replace(/@.+$/, "").replace(/\D/g, "");
+          if (!num) continue;
+          const ts = msg.messageTimestamp ? Number(msg.messageTimestamp) : Math.floor(Date.now() / 1000);
+          const prev = this._chatActivity.get(num) ?? 0;
+          if (ts > prev) {
+            this._chatActivity.set(num, ts);
+            this._notifyContactListeners();
+          }
+        }
+      });
     } catch {
       this._initializing = false;
       this._socketReady = false;
@@ -334,7 +404,7 @@ export class BaileysService {
   }
 
   /**
-   * Returns the synced WhatsApp contact book, sorted by name.
+   * Returns the synced WhatsApp contact book.
    *
    * Only entries with a saved name are included — WhatsApp also reports
    * plain phone numbers the user has merely chatted with (or that share a
@@ -342,11 +412,24 @@ export class BaileysService {
    * have no `name`/`notify` and would otherwise show up as bare, unrecognized
    * numbers in the import list, which is exactly what users don't want to
    * see here.
+   *
+   * Sorting: recently-chatted contacts appear first (descending by last
+   * message timestamp), then the rest alphabetically by name.
    */
   getContacts(): SyncedContact[] {
     return [...this._contacts.values()]
       .filter((c) => !!c.name?.trim())
-      .sort((a, b) => a.name!.localeCompare(b.name!));
+      .map((c) => ({ ...c, lastChatAt: this._chatActivity.get(c.number) }))
+      .sort((a, b) => {
+        // Both have recent activity → newer first
+        if (a.lastChatAt && b.lastChatAt) return b.lastChatAt - a.lastChatAt;
+        // Only a has activity → a comes first
+        if (a.lastChatAt) return -1;
+        // Only b has activity → b comes first
+        if (b.lastChatAt) return 1;
+        // Neither has activity → alphabetical by name
+        return a.name!.localeCompare(b.name!);
+      });
   }
 
   /**
@@ -448,6 +531,7 @@ export class BaileysService {
   async logout() {
     this._rejectPendingPairing(new Error("تم تسجيل الخروج"));
     this._contacts.clear();
+    this._chatActivity.clear();
 
     const sock = this.sock;
     this.sock = null;

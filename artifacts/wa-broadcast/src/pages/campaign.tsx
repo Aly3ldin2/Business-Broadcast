@@ -51,6 +51,8 @@ interface SendResult {
 interface SyncedContact {
   number: string;
   name: string | null;
+  /** Unix timestamp (seconds) — set when there's recent chat history with this contact */
+  lastChatAt?: number;
 }
 
 function getInitials(name: string | null | undefined, number: string): string {
@@ -1483,37 +1485,59 @@ export default function Campaign() {
                           {t("lists_import_wa_no_results")}
                         </p>
                       ) : (
-                        filteredImportContacts.map((c) => {
-                          const checked = importSelected.has(c.number);
-                          const initials = getInitials(c.name, c.number);
-                          const color = avatarColor(c.number);
+                        (() => {
+                          const recent = filteredImportContacts.filter(c => c.lastChatAt);
+                          const rest   = filteredImportContacts.filter(c => !c.lastChatAt);
+                          const renderRow = (c: SyncedContact) => {
+                            const checked = importSelected.has(c.number);
+                            const initials = getInitials(c.name, c.number);
+                            const color = avatarColor(c.number);
+                            return (
+                              <label
+                                key={c.number}
+                                className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleImportSelected(c.number)}
+                                  className="h-4 w-4 rounded border-border accent-primary shrink-0"
+                                />
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${color}`}>
+                                  {initials}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  {c.name ? (
+                                    <>
+                                      <p className="text-sm font-medium truncate leading-tight">{c.name}</p>
+                                      <p className="text-xs text-muted-foreground font-mono" dir="ltr">{c.number}</p>
+                                    </>
+                                  ) : (
+                                    <p className="text-sm font-mono text-muted-foreground" dir="ltr">{c.number}</p>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          };
                           return (
-                            <label
-                              key={c.number}
-                              className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleImportSelected(c.number)}
-                                className="h-4 w-4 rounded border-border accent-primary shrink-0"
-                              />
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${color}`}>
-                                {initials}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                {c.name ? (
-                                  <>
-                                    <p className="text-sm font-medium truncate leading-tight">{c.name}</p>
-                                    <p className="text-xs text-muted-foreground font-mono" dir="ltr">{c.number}</p>
-                                  </>
-                                ) : (
-                                  <p className="text-sm font-mono text-muted-foreground" dir="ltr">{c.number}</p>
-                                )}
-                              </div>
-                            </label>
+                            <>
+                              {recent.length > 0 && (
+                                <>
+                                  <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted/30 select-none">
+                                    {t("contacts_section_recent") || "حديثاً"}
+                                  </div>
+                                  {recent.map(renderRow)}
+                                </>
+                              )}
+                              {recent.length > 0 && rest.length > 0 && (
+                                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted/30 select-none">
+                                  {t("contacts_section_all") || "جميع جهات الاتصال"}
+                                </div>
+                              )}
+                              {rest.map(renderRow)}
+                            </>
                           );
-                        })
+                        })()
                       )}
                     </div>
                   </>
