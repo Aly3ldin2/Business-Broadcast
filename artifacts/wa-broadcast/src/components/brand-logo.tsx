@@ -1,8 +1,9 @@
 /**
  * WhatsApp Broadcast — App Icon (SVG)
  *
- * Broadcast tower + signal waves on a rich green rounded square.
- * Designed to feel modern, expressive, and match the app's purpose.
+ * Bold megaphone pointing right with three chat-bubble messages
+ * flying out of it — immediately communicates "broadcast messaging".
+ * WhatsApp-green diagonal gradient background, pure-white elements.
  */
 import { useId } from "react";
 
@@ -13,10 +14,9 @@ export function BroadcastLogo({
   className?: string;
   size?: number;
 }) {
-  const uid   = useId().replace(/:/g, "");
-  const bgId  = `wab-bg-${uid}`;
-  const glowId = `wab-glow-${uid}`;
-  const shineId = `wab-shine-${uid}`;
+  const uid  = useId().replace(/:/g, "");
+  const bgId = `wab-bg-${uid}`;
+  const shId = `wab-sh-${uid}`;
 
   return (
     <svg
@@ -29,75 +29,60 @@ export function BroadcastLogo({
       aria-hidden="true"
     >
       <defs>
-        {/* Deep-to-vivid green — dark center radiating outward */}
-        <radialGradient id={bgId} cx="38%" cy="30%" r="72%" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#1a6b3c" />
-          <stop offset="55%"  stopColor="#128C7E" />
+        {/* WA green: dark teal → vivid emerald (diagonal) */}
+        <linearGradient id={bgId} x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#075E54" />
           <stop offset="100%" stopColor="#25D366" />
-        </radialGradient>
-
-        {/* Inner glow behind the tower */}
-        <radialGradient id={glowId} cx="32" cy="38" r="20" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#00ff88" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#00ff88" stopOpacity="0"    />
-        </radialGradient>
-
-        {/* Top-left glassy shine */}
-        <radialGradient id={shineId} cx="20%" cy="12%" r="48%" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.22" />
+        </linearGradient>
+        {/* Glass shine top-left */}
+        <radialGradient id={shId} cx="20%" cy="14%" r="55%" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.20" />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0"    />
         </radialGradient>
       </defs>
 
-      {/* ── Background ── */}
+      {/* Background */}
       <rect width="64" height="64" rx="14" fill={`url(#${bgId})`} />
-      <rect width="64" height="64" rx="14" fill={`url(#${glowId})`} />
-      <rect width="64" height="64" rx="14" fill={`url(#${shineId})`} />
+      <rect width="64" height="64" rx="14" fill={`url(#${shId})`} />
 
-      {/* ── Broadcast tower ── centered, scaled to ~75 % */}
-      <g transform="translate(32,32) scale(0.77) translate(-32,-32)">
+      {/* ── Megaphone + bubbles — scaled to leave breathing room ── */}
+      <g transform="translate(32,32) scale(0.82) translate(-32,-32)">
 
-        {/* Tower legs — two diagonal supports */}
-        <line x1="32" y1="18" x2="20" y2="50" stroke="white" strokeWidth="3.2" strokeLinecap="round" />
-        <line x1="32" y1="18" x2="44" y2="50" stroke="white" strokeWidth="3.2" strokeLinecap="round" />
-
-        {/* Cross braces */}
-        <line x1="22" y1="38" x2="42" y2="38" stroke="white" strokeWidth="2.2" strokeLinecap="round" opacity="0.85" />
-        <line x1="24.5" y1="28" x2="39.5" y2="28" stroke="white" strokeWidth="2.2" strokeLinecap="round" opacity="0.85" />
-
-        {/* Mast — vertical spine */}
-        <line x1="32" y1="10" x2="32" y2="18" stroke="white" strokeWidth="2.8" strokeLinecap="round" />
-
-        {/* Top orb */}
-        <circle cx="32" cy="10" r="3" fill="white" />
-
-        {/* Base platform */}
-        <rect x="18" y="50" width="28" height="3.5" rx="1.8" fill="white" opacity="0.9" />
-
-        {/* ── Signal waves (right side) ── */}
-        {/* Wave 1 — closest / strongest */}
+        {/* ── Megaphone ── */}
+        {/* Cone / horn: left-narrow → right-wide */}
         <path
-          d="M 38 23 A 8 8 0 0 1 38 37"
-          stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"
-          opacity="1"
+          d="M14 23 L14 41 L38 54 L38 10 Z"
+          fill="white"
         />
-        {/* Wave 2 */}
-        <path
-          d="M 42 19 A 13 13 0 0 1 42 41"
-          stroke="white" strokeWidth="2.4" strokeLinecap="round" fill="none"
-          opacity="0.65"
-        />
-        {/* Wave 3 — faintest / broadest */}
-        <path
-          d="M 47 14 A 19 19 0 0 1 47 46"
-          stroke="white" strokeWidth="1.8" strokeLinecap="round" fill="none"
-          opacity="0.35"
-        />
+        {/* Round speaker ring at the right (wide) end */}
+        <ellipse cx="38" cy="32" rx="5" ry="22" fill="white" />
+        {/* Inner dark ring for depth */}
+        <ellipse cx="38" cy="32" rx="3" ry="16" fill={`url(#${bgId})`} opacity="0.35" />
 
-        {/* ── Message dots (bottom-right) — three tiny chat bubbles ── */}
-        <circle cx="24" cy="56" r="2.4" fill="white" opacity="0.6" />
-        <circle cx="32" cy="58" r="2.8" fill="white" opacity="0.75" />
-        <circle cx="40" cy="56" r="2.4" fill="white" opacity="0.6" />
+        {/* Grip handle */}
+        <rect x="7" y="40" width="8" height="13" rx="4" fill="white" />
+        {/* Button on handle */}
+        <circle cx="11" cy="47" r="1.8" fill={`url(#${bgId})`} opacity="0.4" />
+
+        {/* ── Three chat bubbles flying out the wide end ── */}
+        {/* Bubble 1 — largest, top */}
+        <rect x="45" y="7"  width="16" height="11" rx="4" fill="white" opacity="0.95" />
+        <polygon points="46,18 46,22 51,18" fill="white" opacity="0.95" />
+        <rect x="48" y="10" width="9" height="1.8" rx="0.9" fill={`url(#${bgId})`} opacity="0.55" />
+        <rect x="48" y="13" width="7" height="1.8" rx="0.9" fill={`url(#${bgId})`} opacity="0.55" />
+
+        {/* Bubble 2 — medium, middle */}
+        <rect x="46" y="27" width="14" height="10" rx="3.5" fill="white" opacity="0.80" />
+        <polygon points="47,27 47,24 51,27" fill="white" opacity="0.80" />
+        <rect x="49" y="30" width="8"  height="1.6" rx="0.8" fill={`url(#${bgId})`} opacity="0.50" />
+        <rect x="49" y="33" width="6"  height="1.6" rx="0.8" fill={`url(#${bgId})`} opacity="0.50" />
+
+        {/* Bubble 3 — smallest, bottom */}
+        <rect x="44" y="46" width="12" height="8"  rx="3"   fill="white" opacity="0.62" />
+        <polygon points="46,54 46,57 50,54" fill="white" opacity="0.62" />
+        <rect x="47" y="49" width="6"  height="1.4" rx="0.7" fill={`url(#${bgId})`} opacity="0.45" />
+        <rect x="47" y="52" width="4"  height="1.4" rx="0.7" fill={`url(#${bgId})`} opacity="0.45" />
+
       </g>
     </svg>
   );
