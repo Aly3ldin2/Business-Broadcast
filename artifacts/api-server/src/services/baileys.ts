@@ -67,6 +67,12 @@ export class BaileysService {
 
   /** Callbacks subscribed to contact-book changes (for SSE push) */
   private _contactListeners = new Set<() => void>();
+  /**
+   * Resolves when the most recent `saveCreds` write has fully landed on disk.
+   * We wait for this before reinitializing after `restartRequired` to avoid
+   * reading a partially-written credentials file on Replit's slow filesystem.
+   */
+  private _pendingCredsWrite: Promise<void> = Promise.resolve();
 
   /**
    * Subscribe to contact-book changes. Returns an unsubscribe function.
@@ -224,15 +230,20 @@ export class BaileysService {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
           if (!isLoggedOut) {
-            // restartRequired fires as a routine part of WA's handshake right after
-            // pairing/login. Give credentials 1 s to flush to disk before re-reading
-            // them in the next initialize() call (previously 250 ms which could race
-            // the async saveCreds write on slow-I/O environments like Replit).
             const isRestartRequired = statusCode === DisconnectReason.restartRequired;
-            this._reconnectTimer = setTimeout(
-              () => void this.initialize(),
-              isRestartRequired ? 1_000 : 5_000,
-            );
+            if (isRestartRequired) {
+              // restartRequired fires right after QR pairing — Baileys has called
+              // saveCreds but the disk write may still be in progress on Replit's
+              // slow FUSE filesystem. Wait for the write to fully land before
+              // reinitializing; reading a partial credentials file was the root
+              // cause of "couldn't connect" errors after scanning QR.
+              void this._pendingCredsWrite.then(() => {
+                // Small extra buffer after write completes — ensures OS flushes
+                this._reconnectTimer = setTimeout(() => void this.initialize(), 300);
+              });
+            } else {
+              this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
+            }
           } else {
             // Logged out remotely (user disconnected from their phone).
             // The session credentials on disk are now invalid — if we try to
@@ -255,7 +266,13 @@ export class BaileysService {
         }
       });
 
-      sock.ev.on("creds.update", saveCreds);
+      // Wrap saveCreds so we can track exactly when the disk write finishes.
+      // Baileys does NOT await event-listener return values, so without this
+      // wrapper we have no way to know if saveCreds has completed before the
+      // next initialize() call reads the auth files.
+      sock.ev.on("creds.update", () => {
+        this._pendingCredsWrite = Promise.resolve(saveCreds()).catch(() => {});
+      });
 
       // Populate the in-memory contact book from WhatsApp's own sync events.
       // "messaging-history.set" fires once after login with the bulk contact
