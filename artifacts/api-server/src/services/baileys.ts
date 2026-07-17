@@ -22,7 +22,17 @@ interface PendingPairing {
 export interface SyncedContact {
   /** Phone number without the "+" or "@s.whatsapp.net" suffix */
   number: string;
+  /**
+   * Name saved in the user's phone address book (contacts app).
+   * null when the number is not in the address book.
+   */
   name: string | null;
+  /**
+   * The contact's own WhatsApp push-name (`notify` field from Baileys).
+   * Only present for numbers registered on WhatsApp. Used as display-name
+   * fallback when the number is not saved in the phone address book.
+   */
+  waName?: string | null;
   /**
    * true when WhatsApp confirmed this number has a WA account.
    * Set whenever Baileys sends a non-empty `notify` (the contact's own WA
@@ -300,12 +310,16 @@ export class BaileysService {
           const name = looksLikePhone ? (existing?.name ?? null) : rawName;
           // `notify` is the contact's own WhatsApp push-name — it is ONLY
           // delivered for numbers that have an active WhatsApp account.
-          // We use its presence as a reliable "has WhatsApp" signal.
-          // Once true it is never cleared (the contact doesn't un-register).
+          // We use its presence as a reliable "has WhatsApp" signal and store
+          // it as `waName` so unsaved-but-on-WA contacts can display a name.
+          // Once hasWhatsApp is true it is never cleared.
+          const notifyStr = typeof c.notify === "string" ? c.notify.trim() : "";
           const hasWhatsApp =
-            existing?.hasWhatsApp ||
-            (typeof c.notify === "string" && c.notify.trim().length > 0);
-          this._contacts.set(number, { number, name, hasWhatsApp });
+            existing?.hasWhatsApp || notifyStr.length > 0;
+          // Prefer the existing waName over a new empty notify to avoid
+          // accidentally clearing a previously captured push-name.
+          const waName = notifyStr.length > 0 ? notifyStr : (existing?.waName ?? null);
+          this._contacts.set(number, { number, name, waName, hasWhatsApp });
         }
         if (list.length) {
           this.queueSavePersistedContacts();
@@ -425,13 +439,18 @@ export class BaileysService {
    */
   getContacts(): SyncedContact[] {
     return [...this._contacts.values()]
-      .map((c) => ({ ...c, lastChatAt: this._chatActivity.get(c.number) }))
+      .map((c) => ({
+        ...c,
+        // Prefer phone address-book name; fall back to WhatsApp push-name so
+        // contacts that are on WA but not saved in the phone still show a name.
+        name: c.name?.trim() || c.waName?.trim() || null,
+        lastChatAt: this._chatActivity.get(c.number),
+      }))
       .filter((c) => {
-        // Must be confirmed on WhatsApp
-        const onWhatsApp = !!c.hasWhatsApp || !!c.lastChatAt;
-        // Must have a real saved name
-        const hasSavedName = !!c.name?.trim();
-        return onWhatsApp && hasSavedName;
+        // Must be confirmed on WhatsApp — either via notify (hasWhatsApp) or
+        // via existing chat history. Phone-only contacts with no WA account
+        // are excluded even if they are saved in the address book.
+        return !!c.hasWhatsApp || !!c.lastChatAt;
       })
       .sort((a, b) => {
         // Both have recent activity → newer first
