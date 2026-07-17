@@ -122,7 +122,12 @@ export class BaileysService {
         return;
       }
 
-      const file = parsed as { v?: number; contacts?: SyncedContact[] };
+      const file = parsed as {
+        v?: number;
+        contacts?: SyncedContact[];
+        /** Saved chat-activity timestamps (unix seconds) keyed by phone number */
+        chatActivity?: Record<string, number>;
+      };
       if ((file.v ?? 0) < BaileysService.CONTACTS_FILE_VERSION) {
         // Outdated version — discard and let WhatsApp re-sync clean data.
         await rm(this.contactsFile, { force: true });
@@ -130,12 +135,21 @@ export class BaileysService {
       }
 
       for (const c of file.contacts ?? []) {
-        // Extra guard: only load entries with a real saved name —
-        // reject entries where name looks like a formatted phone number
-        // (e.g. "+20∙∙∙∙∙∙∙∙31") which WhatsApp uses for unsaved contacts.
+        // Load contacts that have either a real saved address-book name OR a
+        // WhatsApp push-name (waName). This preserves "chat history" contacts
+        // (unsaved numbers we had a direct conversation with) across server
+        // restarts so they don't vanish while waiting for WhatsApp to re-sync.
         const name = c.name?.trim();
         const looksLikePhone = !!name && /^\+[\d\s\u00b7\u22c5\u2219.()\-]+$/.test(name);
-        if (name && !looksLikePhone) this._contacts.set(c.number, c);
+        if ((name && !looksLikePhone) || c.waName?.trim()) {
+          this._contacts.set(c.number, c);
+        }
+      }
+
+      // Restore chat-activity timestamps so recently-chatted contacts survive
+      // server restarts without waiting for WhatsApp to re-deliver history.
+      for (const [num, ts] of Object.entries(file.chatActivity ?? {})) {
+        this._chatActivity.set(num, Number(ts));
       }
     } catch {
       // No persisted contacts yet — fine, they'll populate from sync events.
@@ -148,9 +162,17 @@ export class BaileysService {
     this._savePersistedContactsQueued = true;
     setTimeout(() => {
       this._savePersistedContactsQueued = false;
-      // Only persist contacts that have a real saved name — never bare numbers.
-      const contacts = [...this._contacts.values()].filter((c) => c.name?.trim());
-      const payload = { v: BaileysService.CONTACTS_FILE_VERSION, contacts };
+      // Persist contacts that have a real saved address-book name OR a WA
+      // push-name. This ensures unsaved-but-chatted contacts (waName +
+      // lastChatAt) survive server restarts without waiting for WhatsApp to
+      // re-deliver them via messaging-history.set.
+      const contacts = [...this._contacts.values()].filter(
+        (c) => c.name?.trim() || c.waName?.trim(),
+      );
+      // Also persist chat-activity timestamps so recently-chatted contacts
+      // can be restored immediately after a server restart.
+      const chatActivity = Object.fromEntries([...this._chatActivity.entries()]);
+      const payload = { v: BaileysService.CONTACTS_FILE_VERSION, contacts, chatActivity };
       void writeFile(this.contactsFile, JSON.stringify(payload), "utf-8").catch(() => {
         /* best-effort persistence — in-memory copy still works for this run */
       });
@@ -179,6 +201,11 @@ export class BaileysService {
         this._waVersion = version as [number, number, number];
       }
       const version = this._waVersion;
+
+      // Reset the creds-write tracker so we only wait for THIS socket's
+      // saveCreds() call when restartRequired fires, not a stale promise
+      // left over from a previous session.
+      this._pendingCredsWrite = Promise.resolve();
 
       const sock = makeWASocket({
         version,
@@ -360,17 +387,24 @@ export class BaileysService {
       sock.ev.on("contacts.upsert", (contacts) => upsertContacts(contacts, "contacts.upsert"));
       sock.ev.on("contacts.update", (updates) => upsertContacts(updates, "contacts.update"));
       sock.ev.on("chats.update", (updates) => {
+        let changed = false;
         for (const chat of updates) {
           const ts = chat.lastMessageRecvTimestamp ?? chat.conversationTimestamp;
           if (!ts) continue;
           const num = chat.id?.replace(/@.+$/, "").replace(/\D/g, "");
           if (num && !chat.id?.includes("@g.us")) {
             const prev = this._chatActivity.get(num) ?? 0;
-            if (Number(ts) > prev) this._chatActivity.set(num, Number(ts));
+            if (Number(ts) > prev) {
+              this._chatActivity.set(num, Number(ts));
+              changed = true;
+            }
           }
         }
+        // Persist updated chat-activity so it survives server restarts
+        if (changed) this.queueSavePersistedContacts();
       });
       sock.ev.on("messages.upsert", ({ messages }) => {
+        let changed = false;
         for (const msg of messages) {
           const jid = msg.key.remoteJid;
           if (!jid || jid.includes("@g.us") || jid.includes("@broadcast")) continue;
@@ -380,8 +414,12 @@ export class BaileysService {
           const prev = this._chatActivity.get(num) ?? 0;
           if (ts > prev) {
             this._chatActivity.set(num, ts);
-            this._notifyContactListeners();
+            changed = true;
           }
+        }
+        if (changed) {
+          this.queueSavePersistedContacts();
+          this._notifyContactListeners();
         }
       });
     } catch {
@@ -608,7 +646,11 @@ export class BaileysService {
 
     await rm(this.authDir, { recursive: true, force: true });
 
-    void this.initialize();
+    // Wait before re-initializing so WhatsApp's servers have time to fully
+    // process the logout. Scanning a new QR immediately after disconnecting
+    // can cause WA to reject the pairing with "Couldn't connect, try again"
+    // because the server-side session hasn't been invalidated yet.
+    this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
   }
 }
 
