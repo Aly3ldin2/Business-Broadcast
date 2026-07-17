@@ -456,23 +456,25 @@ export class BaileysService {
    */
   getContacts(): SyncedContact[] {
     return [...this._contacts.values()]
+      .filter((c) => {
+        const lastChatAt = this._chatActivity.get(c.number);
+        // ① Saved in the phone's address book → always include.
+        //    These are the user's own contacts regardless of group membership.
+        if (c.name) return true;
+        // ② Not saved but had a real 1-on-1 conversation → include.
+        //    lastChatAt is only set for direct chats (group messages are skipped),
+        //    so this naturally excludes people who only share a group with the user.
+        //    Require waName too so we have something to display.
+        if (lastChatAt && c.waName) return true;
+        // ③ Everything else (group-only participants, phone-only contacts, etc.) → exclude.
+        return false;
+      })
       .map((c) => ({
         ...c,
-        // Prefer phone address-book name; fall back to WhatsApp push-name so
-        // contacts that are on WA but not saved in the phone still show a name.
+        // Prefer phone address-book name; fall back to WhatsApp push-name.
         name: c.name?.trim() || c.waName?.trim() || null,
         lastChatAt: this._chatActivity.get(c.number),
       }))
-      .filter((c) => {
-        // Must be confirmed on WhatsApp — either via notify (hasWhatsApp) or
-        // via existing chat history. Phone-only contacts with no WA account
-        // are excluded even if they are saved in the address book.
-        const onWhatsApp = !!c.hasWhatsApp || !!c.lastChatAt;
-        // Must have at least one display name (address-book name or WA push-name).
-        // Bare numbers with no identifying name are useless in an import list.
-        const hasDisplayName = !!c.name;
-        return onWhatsApp && hasDisplayName;
-      })
       .sort((a, b) => {
         // Both have recent activity → newer first
         if (a.lastChatAt && b.lastChatAt) return b.lastChatAt - a.lastChatAt;
