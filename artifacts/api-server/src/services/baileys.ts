@@ -224,8 +224,16 @@ export class BaileysService {
               isRestartRequired ? 1_000 : 5_000,
             );
           } else {
-            // Logged out — reject any pending pairing
+            // Logged out remotely (user disconnected from their phone).
+            // The session credentials on disk are now invalid — if we try to
+            // reconnect with them Baileys will keep getting rejected and the
+            // QR will never appear. Fix: wipe the auth files exactly like the
+            // manual logout() does, then reinitialize so a fresh QR is shown.
             this._rejectPendingPairing(new Error("تم تسجيل الخروج — أعد تشغيل الاتصال"));
+            // Remove stale Baileys session files. contacts.json lives in the
+            // same dir but will be recreated from memory on queueSavePersistedContacts.
+            void rm(this.authDir, { recursive: true, force: true }).catch(() => {});
+            this._reconnectTimer = setTimeout(() => void this.initialize(), 2_000);
           }
         } else if (connection === "open") {
           this._connected = true;
