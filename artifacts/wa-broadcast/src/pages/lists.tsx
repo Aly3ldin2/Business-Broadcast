@@ -605,7 +605,7 @@ export default function Lists() {
                       <button
                         onClick={() => void handleRemoveContact(list, contact.number)}
                         title={t("lists_remove_contact")}
-                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
