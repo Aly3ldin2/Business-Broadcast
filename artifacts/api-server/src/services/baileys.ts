@@ -500,9 +500,11 @@ export class BaileysService {
     return [...this._contacts.values()]
       .filter((c) => {
         const lastChatAt = this._chatActivity.get(c.number);
-        // ① Saved in the phone's address book → always include.
-        //    These are the user's own contacts regardless of group membership.
-        if (c.name) return true;
+        // ① Saved in the phone's address book AND confirmed on WhatsApp → include.
+        //    hasWhatsApp is set when WhatsApp delivers a notify (push-name) for
+        //    the number, meaning they have an active WhatsApp account.
+        //    Contacts saved locally but never seen on WhatsApp are excluded.
+        if (c.name && c.hasWhatsApp) return true;
         // ② Not saved but had a real 1-on-1 conversation → include.
         //    lastChatAt is only set for direct chats (group messages are skipped),
         //    so this naturally excludes people who only share a group with the user.
