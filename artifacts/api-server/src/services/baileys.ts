@@ -23,6 +23,13 @@ export interface SyncedContact {
   /** Phone number without the "+" or "@s.whatsapp.net" suffix */
   number: string;
   name: string | null;
+  /**
+   * true when WhatsApp confirmed this number has a WA account.
+   * Set whenever Baileys sends a non-empty `notify` (the contact's own WA
+   * push-name) — `notify` is only present for numbers registered on WhatsApp.
+   * Once set to true it is never cleared, so it survives reconnects.
+   */
+  hasWhatsApp?: boolean;
   /** Unix timestamp (seconds) of last conversation — undefined if no chat history */
   lastChatAt?: number;
 }
@@ -81,10 +88,12 @@ export class BaileysService {
    *
    * v1 (plain array)  — stored both `name` and `notify` as the name field;
    *                     unsaved numbers appeared in the contact list. Ignored.
-   * v2 (this version) — only contacts where `name` came from the phone's own
-   *                     address book are stored; `notify` is never persisted.
+   * v2               — only address-book contacts stored; notify never persisted.
+   *                     Discarded so contacts re-sync with hasWhatsApp flag.
+   * v3 (this version) — adds `hasWhatsApp` flag set when Baileys delivers a
+   *                     non-empty `notify`, proving the number is on WhatsApp.
    */
-  private static readonly CONTACTS_FILE_VERSION = 2;
+  private static readonly CONTACTS_FILE_VERSION = 3;
 
   private async loadPersistedContacts() {
     try {
@@ -281,7 +290,14 @@ export class BaileysService {
           const looksLikePhone = rawName !== null &&
             /^\+[\d\s\u00b7\u22c5\u2219.()\-]+$/.test(rawName);
           const name = looksLikePhone ? (existing?.name ?? null) : rawName;
-          this._contacts.set(number, { number, name });
+          // `notify` is the contact's own WhatsApp push-name — it is ONLY
+          // delivered for numbers that have an active WhatsApp account.
+          // We use its presence as a reliable "has WhatsApp" signal.
+          // Once true it is never cleared (the contact doesn't un-register).
+          const hasWhatsApp =
+            existing?.hasWhatsApp ||
+            (typeof c.notify === "string" && c.notify.trim().length > 0);
+          this._contacts.set(number, { number, name, hasWhatsApp });
         }
         if (list.length) {
           this.queueSavePersistedContacts();
@@ -390,20 +406,25 @@ export class BaileysService {
   /**
    * Returns the synced WhatsApp contact book.
    *
-   * Only entries with a saved name are included — WhatsApp also reports
-   * plain phone numbers the user has merely chatted with (or that share a
-   * group), which were never actually saved to their phone contacts. Those
-   * have no `name`/`notify` and would otherwise show up as bare, unrecognized
-   * numbers in the import list, which is exactly what users don't want to
-   * see here.
+   * A contact is included only when BOTH conditions hold:
+   *   1. It is confirmed on WhatsApp — either Baileys sent a `notify` for it
+   *      (hasWhatsApp flag) or it has recent chat activity with the user.
+   *      This excludes phone/call-only contacts that never joined WhatsApp.
+   *   2. It has a saved name — so bare unrecognised numbers don't appear.
    *
    * Sorting: recently-chatted contacts appear first (descending by last
    * message timestamp), then the rest alphabetically by name.
    */
   getContacts(): SyncedContact[] {
     return [...this._contacts.values()]
-      .filter((c) => !!c.name?.trim())
       .map((c) => ({ ...c, lastChatAt: this._chatActivity.get(c.number) }))
+      .filter((c) => {
+        // Must be confirmed on WhatsApp
+        const onWhatsApp = !!c.hasWhatsApp || !!c.lastChatAt;
+        // Must have a real saved name
+        const hasSavedName = !!c.name?.trim();
+        return onWhatsApp && hasSavedName;
+      })
       .sort((a, b) => {
         // Both have recent activity → newer first
         if (a.lastChatAt && b.lastChatAt) return b.lastChatAt - a.lastChatAt;
