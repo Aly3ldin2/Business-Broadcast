@@ -467,7 +467,11 @@ export class BaileysService {
         // Must be confirmed on WhatsApp — either via notify (hasWhatsApp) or
         // via existing chat history. Phone-only contacts with no WA account
         // are excluded even if they are saved in the address book.
-        return !!c.hasWhatsApp || !!c.lastChatAt;
+        const onWhatsApp = !!c.hasWhatsApp || !!c.lastChatAt;
+        // Must have at least one display name (address-book name or WA push-name).
+        // Bare numbers with no identifying name are useless in an import list.
+        const hasDisplayName = !!c.name;
+        return onWhatsApp && hasDisplayName;
       })
       .sort((a, b) => {
         // Both have recent activity → newer first
