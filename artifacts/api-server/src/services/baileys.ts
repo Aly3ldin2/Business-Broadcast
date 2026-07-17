@@ -422,9 +422,13 @@ export class BaileysService {
           this._notifyContactListeners();
         }
       });
-    } catch {
+    } catch (err) {
       this._initializing = false;
       this._socketReady = false;
+      // Log so connection failures are diagnosable instead of silently swallowed.
+      // Using console.error here because the pino logger may not be available
+      // in all environments where this is invoked (e.g. during early startup).
+      console.error("[BaileysService] initialize() failed:", err);
       this._reconnectTimer = setTimeout(() => void this.initialize(), 10_000);
     }
   }

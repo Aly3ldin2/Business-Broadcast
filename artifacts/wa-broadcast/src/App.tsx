@@ -537,7 +537,6 @@ function LoginGate({ children }: { children: React.ReactNode }) {
   const { isLoading: authLoading,  data: user }        = useAuth();
   const { isLoading: setupLoading, data: setupStatus } = useSetupStatus();
   const qc = useQueryClient();
-  const { } = useI18n();
   const [, navigate]   = useLocation();
   const [showForgot, setShowForgot] = useState(false);
 

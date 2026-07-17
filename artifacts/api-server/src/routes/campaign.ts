@@ -41,10 +41,20 @@ router.post("/send", async (req, res) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 
+  // Track whether the client has disconnected mid-broadcast so we can skip
+  // remaining sends and avoid writing to a closed response.
+  let clientAborted = false;
+  req.on("close", () => {
+    clientAborted = true;
+    clearInterval(heartbeat);
+  });
+
   // Heartbeat: send a keep-alive comment every 15 s so the SSE connection
   // stays open during long video uploads (large files can take 30-90 s).
+  // Wrapped in try/catch so a write-to-closed-socket error after the client
+  // disconnects doesn't propagate as an unhandled exception.
   const heartbeat = setInterval(() => {
-    res.write(": keepalive\n\n");
+    try { res.write(": keepalive\n\n"); } catch { clearInterval(heartbeat); }
   }, 15_000);
 
   const { phones, message, mediaItems } = parsed.data;
@@ -55,6 +65,9 @@ router.post("/send", async (req, res) => {
   let failed = 0;
 
   for (let idx = 0; idx < phones.length; idx++) {
+    // Stop processing if the client disconnected (e.g. navigated away).
+    if (clientAborted) break;
+
     const rawPhone = phones[idx];
     const phone = rawPhone.replace(/[\s+\-()]/g, "");
     const remaining = total - idx - 1;
