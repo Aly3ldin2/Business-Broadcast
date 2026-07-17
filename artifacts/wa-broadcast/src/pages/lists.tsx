@@ -114,6 +114,22 @@ export default function Lists() {
     setQuickName("");
   }
 
+  async function handleRemoveContact(list: PhoneList, number: string) {
+    const updatedList: PhoneList = {
+      ...list,
+      phones: list.phones.filter((c) => c.number !== number),
+    };
+    const newLists = (gistData?.lists ?? []).map((l: { name: string; phones: { number: string; name: string | null }[] }) =>
+      l.name === list.name ? updatedList : l
+    );
+    try {
+      await saveMutation.mutateAsync({ data: { lists: newLists } });
+      queryClient.invalidateQueries({ queryKey: getLoadPhonesFromGistQueryKey() });
+    } catch (e: unknown) {
+      toast({ title: t("lists_save_fail"), description: (e as Error)?.message, variant: "destructive" });
+    }
+  }
+
   async function handleQuickAdd(list: PhoneList) {
     const raw = quickPhone.replace(/\D/g, "");
     if (raw.length < 7) return;
@@ -460,7 +476,7 @@ export default function Lists() {
                 {list.phones.length > 0 && (
                   <button
                     onClick={() => toggleExpanded(list.name)}
-                    title={expandedLists.has(list.name) ? t("lists_hide") ?? "إخفاء" : t("lists_view") ?? "عرض"}
+                    title={expandedLists.has(list.name) ? t("lists_hide") : t("lists_view")}
                     className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors ${
                       expandedLists.has(list.name)
                         ? "bg-primary/10 text-primary"
@@ -468,8 +484,8 @@ export default function Lists() {
                     }`}
                   >
                     {expandedLists.has(list.name)
-                      ? <><EyeOff className="h-3.5 w-3.5" />{t("lists_hide") ?? "إخفاء"}</>
-                      : <><Eye    className="h-3.5 w-3.5" />{t("lists_view") ?? "عرض"}</>
+                      ? <><EyeOff className="h-3.5 w-3.5" />{t("lists_hide")}</>
+                      : <><Eye    className="h-3.5 w-3.5" />{t("lists_view")}</>
                     }
                   </button>
                 )}
@@ -572,7 +588,7 @@ export default function Lists() {
                   const initials = getInitials(contact.name, contact.number);
                   const color    = avatarColor(contact.number);
                   return (
-                    <div key={contact.number} className="flex items-center gap-3 px-4 py-2.5">
+                    <div key={contact.number} className="flex items-center gap-3 px-4 py-2.5 group">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${color}`}>
                         {initials}
                       </div>
@@ -586,6 +602,13 @@ export default function Lists() {
                           <p className="text-sm font-mono text-muted-foreground" dir="ltr">{contact.number}</p>
                         )}
                       </div>
+                      <button
+                        onClick={() => void handleRemoveContact(list, contact.number)}
+                        title={t("lists_remove_contact")}
+                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   );
                 })}
