@@ -1,4 +1,5 @@
 import makeWASocket, {
+  Browsers,
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
@@ -212,8 +213,11 @@ export class BaileysService {
         auth: state,
         logger: silentLogger,
         printQRInTerminal: false,
-        browser: ["WhatsApp Broadcast", "Chrome", "1.0.0"],
-        connectTimeoutMs: 60_000,
+        // Use Baileys' standard macOS/Chrome fingerprint — same as Baileys' own default.
+        // Custom platform names (e.g. "WhatsApp Broadcast") are not in WA's recognized
+        // platform list and can cause the server to reject the QR pairing handshake
+        // with "Couldn't connect, try again".
+        browser: Browsers.ubuntu("Chrome"),
         // Keep the WebSocket alive with periodic pings to prevent idle disconnects
         keepAliveIntervalMs: 25_000,
         // Baileys defaults to a 60s lifetime for the FIRST QR but only 20s for subsequent
@@ -259,14 +263,18 @@ export class BaileysService {
           if (!isLoggedOut) {
             const isRestartRequired = statusCode === DisconnectReason.restartRequired;
             if (isRestartRequired) {
-              // restartRequired fires right after QR pairing — Baileys has called
-              // saveCreds but the disk write may still be in progress on Replit's
-              // slow FUSE filesystem. Wait for the write to fully land before
-              // reinitializing; reading a partial credentials file was the root
-              // cause of "couldn't connect" errors after scanning QR.
+              // restartRequired fires right after QR pairing — two things must
+              // complete before we reconnect:
+              //
+              // 1. Our saveCreds() write must land on disk (Replit's FUSE FS is
+              //    slow, so we explicitly wait for _pendingCredsWrite).
+              //
+              // 2. WhatsApp's servers need time to finalise the device registration
+              //    on their side. Reconnecting too fast causes them to reject the
+              //    new socket with "Couldn't connect, try again" even though the
+              //    QR scan itself succeeded. 1 500 ms is enough in practice.
               void this._pendingCredsWrite.then(() => {
-                // Small extra buffer after write completes — ensures OS flushes
-                this._reconnectTimer = setTimeout(() => void this.initialize(), 300);
+                this._reconnectTimer = setTimeout(() => void this.initialize(), 1_500);
               });
             } else {
               this._reconnectTimer = setTimeout(() => void this.initialize(), 5_000);
